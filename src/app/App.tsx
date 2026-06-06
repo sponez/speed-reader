@@ -1,17 +1,20 @@
+import { useState } from "react";
+import PreparationScreen from "./screens/preparation/PreparationScreen";
+import type { PreparationDraft } from "./screens/preparation/preparationTypes";
 import "./App.css";
 
+type AppMode = "preparing";
+
 function App() {
+  const [mode] = useState<AppMode>("preparing");
+  const [, setLatestDraft] = useState<PreparationDraft | null>(null);
+
+  const handleStart = (draft: PreparationDraft) => {
+    setLatestDraft(draft);
+  };
+
   return (
-    <main className="app-shell">
-      <section className="app-placeholder" aria-labelledby="app-title">
-        <p className="app-kicker">Desktop reading trainer</p>
-        <h1 id="app-title">Speed Reader</h1>
-        <p className="app-summary">
-          Базовая структура готова. Следующий шаг - экран подготовки текста и
-          настроек чтения.
-        </p>
-      </section>
-    </main>
+    <>{mode === "preparing" && <PreparationScreen onStart={handleStart} />}</>
   );
 }
 
