@@ -1,7 +1,5 @@
-export type PreparationDraft = {
+import type { ReaderSettings } from "../../../domain/reading";
+
+export type PreparationDraft = ReaderSettings & {
   text: string;
-  wpm: number;
-  visibleWordsBefore: number;
-  visibleWordsAfter: number;
-  blurIntensity: number;
 };
