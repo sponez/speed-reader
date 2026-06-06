@@ -7,7 +7,7 @@
 }
 
 .reading-status {
-  width: min(100%, 720px);
+  width: min(100%, 860px);
   border: 1px solid #ded8cf;
   border-radius: 8px;
   background: #fffdfa;
@@ -31,7 +31,7 @@
 
 .session-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 28px 0 0;
 }

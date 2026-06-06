@@ -1,4 +1,5 @@
 import type { ReadingSession } from "../../../domain/reading";
+import { useReadingRunner } from "./useReadingRunner";
 import "./ReadingScreen.css";
 
 type ReadingScreenProps = {
@@ -7,8 +8,14 @@ type ReadingScreenProps = {
 
 function ReadingScreen({ session }: ReadingScreenProps) {
   const { settings, text } = session;
+  const { focusWindow, progress } = useReadingRunner(session);
   const visibleWordCount =
     settings.visibleWordsBefore + 1 + settings.visibleWordsAfter;
+  const focusRange =
+    focusWindow.lastVisibleWordIndex < focusWindow.firstVisibleWordIndex
+      ? "None"
+      : `${focusWindow.firstVisibleWordIndex} - ${focusWindow.lastVisibleWordIndex}`;
+  const elapsedSeconds = (progress.elapsedMs / 1_000).toFixed(1);
 
   return (
     <main className="reading-screen">
@@ -19,7 +26,7 @@ function ReadingScreen({ session }: ReadingScreenProps) {
         <dl className="session-metrics" aria-label="Session metrics">
           <div>
             <dt>Status</dt>
-            <dd>{session.status}</dd>
+            <dd>{progress.isFinished ? "finished" : "running"}</dd>
           </div>
           <div>
             <dt>Words</dt>
@@ -36,6 +43,18 @@ function ReadingScreen({ session }: ReadingScreenProps) {
           <div>
             <dt>Blur</dt>
             <dd>{settings.blurIntensity}px</dd>
+          </div>
+          <div>
+            <dt>Active index</dt>
+            <dd>{progress.activeWordIndex}</dd>
+          </div>
+          <div>
+            <dt>Focus range</dt>
+            <dd>{focusRange}</dd>
+          </div>
+          <div>
+            <dt>Elapsed</dt>
+            <dd>{elapsedSeconds}s</dd>
           </div>
         </dl>
       </section>
