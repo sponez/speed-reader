@@ -30,6 +30,12 @@ Build the frontend:
 npm run build
 ```
 
+Run unit tests:
+
+```powershell
+npm run test
+```
+
 Build the Windows desktop app and installers:
 
 ```powershell
