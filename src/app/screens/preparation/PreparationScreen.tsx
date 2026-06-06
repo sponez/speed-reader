@@ -39,7 +39,6 @@ function PreparationScreen({ onStart }: PreparationScreenProps) {
 
     onStart({
       ...draft,
-      text: draft.text.trim(),
     });
   };
 
