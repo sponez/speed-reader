@@ -17,3 +17,22 @@ export type Token = {
   kind: "word" | "separator";
   wordIndex?: number;
 };
+
+export type ReadingSession = {
+  text: ReadingText;
+  settings: ReaderSettings;
+  startedAtMs: number;
+  status: "running" | "finished";
+};
+
+export type ReadingProgress = {
+  activeWordIndex: number;
+  elapsedMs: number;
+  isFinished: boolean;
+};
+
+export type FocusWindow = {
+  activeWordIndex: number;
+  firstVisibleWordIndex: number;
+  lastVisibleWordIndex: number;
+};
