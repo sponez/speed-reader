@@ -1,7 +1,6 @@
 export type ReaderSettings = {
   wpm: number;
-  visibleWordsBefore: number;
-  visibleWordsAfter: number;
+  focusWindowSize: number;
   blurIntensity: number;
   focusHighlightIntensity: number;
 };
@@ -27,6 +26,7 @@ export type ReadingSession = {
 };
 
 export type ReadingProgress = {
+  cursorWordIndex: number;
   activeWordIndex: number;
   elapsedMs: number;
   isFinished: boolean;
@@ -36,4 +36,9 @@ export type FocusWindow = {
   activeWordIndex: number;
   firstVisibleWordIndex: number;
   lastVisibleWordIndex: number;
+};
+
+export type WordLine = {
+  firstWordIndex: number;
+  lastWordIndex: number;
 };

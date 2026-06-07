@@ -1,0 +1,51 @@
+.guided-window-text {
+  --guided-window-blur: 0px;
+  --guided-window-highlight-alpha: 0.47;
+  width: 100%;
+  color: #1e1b18;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.25rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.guided-window-token {
+  border-radius: 4px;
+  transition:
+    background-color 120ms ease,
+    filter 120ms ease,
+    opacity 120ms ease;
+}
+
+.guided-window-token-word {
+  display: inline;
+}
+
+.guided-window-token-separator {
+  display: inline;
+}
+
+.guided-window-token-focus {
+  filter: none;
+  opacity: 1;
+}
+
+.guided-window-token-highlighted {
+  background: rgba(215, 236, 228, var(--guided-window-highlight-alpha));
+}
+
+.guided-window-token-active-anchor {
+  scroll-margin-block: 40%;
+}
+
+.guided-window-token-blurred {
+  filter: blur(var(--guided-window-blur));
+  opacity: 0.58;
+}
+
+@media (max-width: 760px) {
+  .guided-window-text {
+    font-size: 1.125rem;
+    line-height: 1.75;
+  }
+}

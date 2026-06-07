@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateFocusWindow,
+  calculateLineBoundedFocusWindow,
   calculateReadingProgress,
   calculateWordIntervalMs,
   createReadingSession,
+  validateFocusWindowSize,
 } from "./readingProgress";
 import type {
   ReaderSettings,
@@ -15,8 +17,7 @@ import type {
 
 const settings: ReaderSettings = {
   wpm: 300,
-  visibleWordsBefore: 2,
-  visibleWordsAfter: 3,
+  focusWindowSize: 5,
   blurIntensity: 4,
   focusHighlightIntensity: 65,
 };
@@ -42,6 +43,7 @@ const createProgress = (
   activeWordIndex: number,
   overrides: Partial<ReadingProgress> = {},
 ): ReadingProgress => ({
+  cursorWordIndex: activeWordIndex,
   activeWordIndex,
   elapsedMs: 0,
   isFinished: false,
@@ -60,6 +62,18 @@ describe("calculateWordIntervalMs", () => {
     );
     expect(() => calculateWordIntervalMs(-10)).toThrow(
       "WPM must be greater than 0.",
+    );
+  });
+});
+
+describe("validateFocusWindowSize", () => {
+  it("accepts a positive focus window size", () => {
+    expect(() => validateFocusWindowSize(1)).not.toThrow();
+  });
+
+  it("rejects a non-positive focus window size", () => {
+    expect(() => validateFocusWindowSize(0)).toThrow(
+      "Focus window size must be greater than 0.",
     );
   });
 });
@@ -88,37 +102,78 @@ describe("createReadingSession", () => {
       createReadingSession(createText(3), { ...settings, wpm: 0 }, 1_000),
     ).toThrow("WPM must be greater than 0.");
   });
+
+  it("rejects settings with invalid focus window size", () => {
+    expect(() =>
+      createReadingSession(
+        createText(3),
+        { ...settings, focusWindowSize: 0 },
+        1_000,
+      ),
+    ).toThrow("Focus window size must be greater than 0.");
+  });
 });
 
 describe("calculateReadingProgress", () => {
   it("does not return a negative elapsed time", () => {
     expect(calculateReadingProgress(createSession(), 900)).toEqual({
-      activeWordIndex: 0,
+      cursorWordIndex: 0,
+      activeWordIndex: 4,
       elapsedMs: 0,
       isFinished: false,
     });
   });
 
-  it("keeps the first word active at the session start", () => {
-    expect(calculateReadingProgress(createSession(), 1_000)).toEqual({
-      activeWordIndex: 0,
+  it("uses the last word of the first focus window as active anchor", () => {
+    expect(calculateReadingProgress(createSession(10), 1_000)).toEqual({
+      cursorWordIndex: 0,
+      activeWordIndex: 4,
       elapsedMs: 0,
       isFinished: false,
     });
   });
 
-  it("moves to the next word after one word interval", () => {
-    expect(calculateReadingProgress(createSession(), 1_200)).toEqual({
-      activeWordIndex: 1,
-      elapsedMs: 200,
+  it("keeps the same focus window during one block", () => {
+    expect(calculateReadingProgress(createSession(10), 1_800)).toEqual({
+      cursorWordIndex: 4,
+      activeWordIndex: 4,
+      elapsedMs: 800,
+      isFinished: false,
+    });
+  });
+
+  it("moves to the next block after one full focus window interval", () => {
+    expect(calculateReadingProgress(createSession(10), 2_000)).toEqual({
+      cursorWordIndex: 5,
+      activeWordIndex: 9,
+      elapsedMs: 1_000,
+      isFinished: false,
+    });
+  });
+
+  it("uses the last available word as active anchor for a partial final block", () => {
+    expect(calculateReadingProgress(createSession(7), 2_000)).toEqual({
+      cursorWordIndex: 5,
+      activeWordIndex: 6,
+      elapsedMs: 1_000,
+      isFinished: false,
+    });
+  });
+
+  it("keeps the active anchor inside a short first block", () => {
+    expect(calculateReadingProgress(createSession(3), 1_000)).toEqual({
+      cursorWordIndex: 0,
+      activeWordIndex: 2,
+      elapsedMs: 0,
       isFinished: false,
     });
   });
 
   it("clamps the active word index to the last word", () => {
-    expect(calculateReadingProgress(createSession(3), 2_000)).toEqual({
+    expect(calculateReadingProgress(createSession(3), 1_600)).toEqual({
+      cursorWordIndex: 2,
       activeWordIndex: 2,
-      elapsedMs: 1_000,
+      elapsedMs: 600,
       isFinished: true,
     });
   });
@@ -127,7 +182,8 @@ describe("calculateReadingProgress", () => {
     expect(
       calculateReadingProgress(createSession(3, { status: "finished" }), 1_000),
     ).toEqual({
-      activeWordIndex: 0,
+      cursorWordIndex: 0,
+      activeWordIndex: 2,
       elapsedMs: 0,
       isFinished: true,
     });
@@ -135,6 +191,7 @@ describe("calculateReadingProgress", () => {
 
   it("marks an empty text as finished", () => {
     expect(calculateReadingProgress(createSession(0), 1_500)).toEqual({
+      cursorWordIndex: 0,
       activeWordIndex: 0,
       elapsedMs: 500,
       isFinished: true,
@@ -143,34 +200,42 @@ describe("calculateReadingProgress", () => {
 });
 
 describe("calculateFocusWindow", () => {
-  it("calculates visible word indexes around the active word", () => {
-    expect(calculateFocusWindow(createProgress(5), settings, 10)).toEqual({
-      activeWordIndex: 5,
-      firstVisibleWordIndex: 3,
-      lastVisibleWordIndex: 8,
-    });
-  });
-
-  it("does not go below the first word", () => {
-    expect(calculateFocusWindow(createProgress(1), settings, 10)).toEqual({
-      activeWordIndex: 1,
+  it("calculates visible word indexes for the current block", () => {
+    expect(calculateFocusWindow(createProgress(4), settings, 10)).toEqual({
+      activeWordIndex: 4,
       firstVisibleWordIndex: 0,
       lastVisibleWordIndex: 4,
     });
   });
 
-  it("does not go beyond the last word", () => {
+  it("normalizes the active word to the last word of its block", () => {
+    expect(calculateFocusWindow(createProgress(1), settings, 10)).toEqual({
+      activeWordIndex: 4,
+      firstVisibleWordIndex: 0,
+      lastVisibleWordIndex: 4,
+    });
+  });
+
+  it("moves the window by a full block", () => {
     expect(calculateFocusWindow(createProgress(8), settings, 10)).toEqual({
-      activeWordIndex: 8,
-      firstVisibleWordIndex: 6,
+      activeWordIndex: 9,
+      firstVisibleWordIndex: 5,
       lastVisibleWordIndex: 9,
     });
   });
 
-  it("clamps an out-of-range active word index", () => {
+  it("handles a partial final block", () => {
+    expect(calculateFocusWindow(createProgress(11), settings, 12)).toEqual({
+      activeWordIndex: 11,
+      firstVisibleWordIndex: 10,
+      lastVisibleWordIndex: 11,
+    });
+  });
+
+  it("clamps an out-of-range active word index to the final block", () => {
     expect(calculateFocusWindow(createProgress(12), settings, 10)).toEqual({
       activeWordIndex: 9,
-      firstVisibleWordIndex: 7,
+      firstVisibleWordIndex: 5,
       lastVisibleWordIndex: 9,
     });
   });
@@ -181,5 +246,94 @@ describe("calculateFocusWindow", () => {
       firstVisibleWordIndex: 0,
       lastVisibleWordIndex: -1,
     });
+  });
+
+  it("rejects an invalid focus window size", () => {
+    expect(() =>
+      calculateFocusWindow(
+        createProgress(0),
+        { ...settings, focusWindowSize: 0 },
+        10,
+      ),
+    ).toThrow("Focus window size must be greater than 0.");
+  });
+});
+
+describe("calculateLineBoundedFocusWindow", () => {
+  const wordLines = [
+    { firstWordIndex: 0, lastWordIndex: 7 },
+    { firstWordIndex: 8, lastWordIndex: 14 },
+  ];
+
+  it("keeps the window inside one visual line when the block fits", () => {
+    expect(
+      calculateLineBoundedFocusWindow(3, settings, 15, wordLines),
+    ).toEqual({
+      activeWordIndex: 4,
+      firstVisibleWordIndex: 0,
+      lastVisibleWordIndex: 4,
+    });
+  });
+
+  it("trims the window at the end of the visual line", () => {
+    expect(
+      calculateLineBoundedFocusWindow(6, settings, 15, wordLines),
+    ).toEqual({
+      activeWordIndex: 7,
+      firstVisibleWordIndex: 5,
+      lastVisibleWordIndex: 7,
+    });
+  });
+
+  it("starts the next window at the beginning of the next visual line", () => {
+    expect(
+      calculateLineBoundedFocusWindow(8, settings, 15, wordLines),
+    ).toEqual({
+      activeWordIndex: 12,
+      firstVisibleWordIndex: 8,
+      lastVisibleWordIndex: 12,
+    });
+  });
+
+  it("handles an incomplete final window on the last visual line", () => {
+    expect(
+      calculateLineBoundedFocusWindow(13, settings, 15, wordLines),
+    ).toEqual({
+      activeWordIndex: 14,
+      firstVisibleWordIndex: 13,
+      lastVisibleWordIndex: 14,
+    });
+  });
+
+  it("falls back to block-based calculation when line data is empty", () => {
+    expect(calculateLineBoundedFocusWindow(6, settings, 15, [])).toEqual({
+      activeWordIndex: 9,
+      firstVisibleWordIndex: 5,
+      lastVisibleWordIndex: 9,
+    });
+  });
+
+  it("falls back to block-based calculation when no line contains the cursor", () => {
+    expect(
+      calculateLineBoundedFocusWindow(6, settings, 15, [
+        { firstWordIndex: 0, lastWordIndex: 4 },
+        { firstWordIndex: 8, lastWordIndex: 14 },
+      ]),
+    ).toEqual({
+      activeWordIndex: 9,
+      firstVisibleWordIndex: 5,
+      lastVisibleWordIndex: 9,
+    });
+  });
+
+  it("rejects an invalid focus window size", () => {
+    expect(() =>
+      calculateLineBoundedFocusWindow(
+        0,
+        { ...settings, focusWindowSize: 0 },
+        10,
+        wordLines,
+      ),
+    ).toThrow("Focus window size must be greater than 0.");
   });
 });

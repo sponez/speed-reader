@@ -26,7 +26,7 @@ const previewWords = [
   "drifting",
   "back",
 ];
-const previewActiveWordIndex = 6;
+const previewWindowStartIndex = 5;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -34,13 +34,9 @@ const clamp = (value: number, min: number, max: number) =>
 function PreparationScreen({ onStart }: PreparationScreenProps) {
   const [draft, setDraft] = useState<PreparationDraft>(preparationDefaults);
   const canStart = draft.text.trim().length > 0;
-  const previewFirstVisibleWordIndex = clamp(
-    previewActiveWordIndex - draft.visibleWordsBefore,
-    0,
-    previewWords.length - 1,
-  );
+  const previewFirstVisibleWordIndex = previewWindowStartIndex;
   const previewLastVisibleWordIndex = clamp(
-    previewActiveWordIndex + draft.visibleWordsAfter,
+    previewFirstVisibleWordIndex + draft.focusWindowSize - 1,
     0,
     previewWords.length - 1,
   );
@@ -131,36 +127,18 @@ function PreparationScreen({ onStart }: PreparationScreenProps) {
               </span>
             </label>
 
-            <label className="field-control" htmlFor="visible-before">
-              <span>Visible before</span>
+            <label className="field-control" htmlFor="focus-window-size">
+              <span>Window size</span>
               <span className="input-with-unit">
                 <input
-                  id="visible-before"
+                  id="focus-window-size"
                   type="number"
-                  min={preparationRanges.visibleWordsBefore.min}
-                  max={preparationRanges.visibleWordsBefore.max}
-                  step={preparationRanges.visibleWordsBefore.step}
-                  value={draft.visibleWordsBefore}
+                  min={preparationRanges.focusWindowSize.min}
+                  max={preparationRanges.focusWindowSize.max}
+                  step={preparationRanges.focusWindowSize.step}
+                  value={draft.focusWindowSize}
                   onChange={(event) =>
-                    updateNumber("visibleWordsBefore", event.target.value)
-                  }
-                />
-                <small>words</small>
-              </span>
-            </label>
-
-            <label className="field-control" htmlFor="visible-after">
-              <span>Visible after</span>
-              <span className="input-with-unit">
-                <input
-                  id="visible-after"
-                  type="number"
-                  min={preparationRanges.visibleWordsAfter.min}
-                  max={preparationRanges.visibleWordsAfter.max}
-                  step={preparationRanges.visibleWordsAfter.step}
-                  value={draft.visibleWordsAfter}
-                  onChange={(event) =>
-                    updateNumber("visibleWordsAfter", event.target.value)
+                    updateNumber("focusWindowSize", event.target.value)
                   }
                 />
                 <small>words</small>

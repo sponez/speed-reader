@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   calculateFocusWindow,
+  calculateLineBoundedFocusWindow,
   calculateReadingProgress,
   type FocusWindow,
   type ReadingProgress,
   type ReadingSession,
+  type WordLine,
 } from "../../../domain/reading";
 
 type ReadingRunnerState = {
@@ -15,22 +17,34 @@ type ReadingRunnerState = {
 const createRunnerState = (
   session: ReadingSession,
   nowMs: number,
+  wordLines: WordLine[],
 ): ReadingRunnerState => {
   const progress = calculateReadingProgress(session, nowMs);
 
   return {
     progress,
-    focusWindow: calculateFocusWindow(
-      progress,
-      session.settings,
-      session.text.wordCount,
-    ),
+    focusWindow:
+      wordLines.length > 0
+        ? calculateLineBoundedFocusWindow(
+            progress.cursorWordIndex,
+            session.settings,
+            session.text.wordCount,
+            wordLines,
+          )
+        : calculateFocusWindow(
+            progress,
+            session.settings,
+            session.text.wordCount,
+          ),
   };
 };
 
-export function useReadingRunner(session: ReadingSession): ReadingRunnerState {
+export function useReadingRunner(
+  session: ReadingSession,
+  wordLines: WordLine[] = [],
+): ReadingRunnerState {
   const [runnerState, setRunnerState] = useState<ReadingRunnerState>(() =>
-    createRunnerState(session, performance.now()),
+    createRunnerState(session, performance.now(), wordLines),
   );
 
   useEffect(() => {
@@ -38,7 +52,7 @@ export function useReadingRunner(session: ReadingSession): ReadingRunnerState {
     let isMounted = true;
 
     const updateRunnerState = (nowMs: number) => {
-      const nextRunnerState = createRunnerState(session, nowMs);
+      const nextRunnerState = createRunnerState(session, nowMs, wordLines);
 
       if (!isMounted) {
         return;
@@ -60,7 +74,7 @@ export function useReadingRunner(session: ReadingSession): ReadingRunnerState {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [session]);
+  }, [session, wordLines]);
 
   return runnerState;
 }

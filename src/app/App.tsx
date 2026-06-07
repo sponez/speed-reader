@@ -21,15 +21,13 @@ function App() {
     const {
       text,
       wpm,
-      visibleWordsBefore,
-      visibleWordsAfter,
+      focusWindowSize,
       blurIntensity,
       focusHighlightIntensity,
     } = draft;
     const settings: ReaderSettings = {
       wpm,
-      visibleWordsBefore,
-      visibleWordsAfter,
+      focusWindowSize,
       blurIntensity,
       focusHighlightIntensity,
     };
