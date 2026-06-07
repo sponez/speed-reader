@@ -3,6 +3,7 @@ export type ReaderSettings = {
   visibleWordsBefore: number;
   visibleWordsAfter: number;
   blurIntensity: number;
+  focusHighlightIntensity: number;
 };
 
 export type ReadingText = {

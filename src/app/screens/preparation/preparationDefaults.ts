@@ -6,6 +6,7 @@ export const preparationDefaults: PreparationDraft = {
   visibleWordsBefore: 2,
   visibleWordsAfter: 4,
   blurIntensity: 4,
+  focusHighlightIntensity: 65,
 };
 
 export const preparationRanges = {
@@ -13,4 +14,5 @@ export const preparationRanges = {
   visibleWordsBefore: { min: 0, max: 20, step: 1 },
   visibleWordsAfter: { min: 0, max: 20, step: 1 },
   blurIntensity: { min: 0, max: 12, step: 1 },
+  focusHighlightIntensity: { min: 0, max: 100, step: 5 },
 } as const;

@@ -18,6 +18,7 @@ const settings: ReaderSettings = {
   visibleWordsBefore: 2,
   visibleWordsAfter: 3,
   blurIntensity: 4,
+  focusHighlightIntensity: 65,
 };
 
 const createText = (wordCount: number): ReadingText => ({

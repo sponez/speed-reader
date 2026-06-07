@@ -24,12 +24,14 @@ function App() {
       visibleWordsBefore,
       visibleWordsAfter,
       blurIntensity,
+      focusHighlightIntensity,
     } = draft;
     const settings: ReaderSettings = {
       wpm,
       visibleWordsBefore,
       visibleWordsAfter,
       blurIntensity,
+      focusHighlightIntensity,
     };
     const readingText = tokenizeReadingText(text);
     const session = createReadingSession(

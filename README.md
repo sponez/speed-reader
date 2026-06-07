@@ -1,6 +1,8 @@
 # Speed Reader
 
-Speed Reader is a personal Windows desktop app for practicing reading speed with a moving focus window.
+Speed Reader is a personal Windows desktop app for practicing reading speed.
+
+The current MVP focuses on a guided moving focus window mode. The architecture is being kept open for additional reading modes, presentation variants, and UI themes later.
 
 The app is built with Tauri 2, Vite, React, TypeScript, and npm. The Rust side stays intentionally thin and acts as the desktop shell, while the reading logic and UI live in the TypeScript frontend.
 
