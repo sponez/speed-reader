@@ -39,7 +39,9 @@ const normalizeNumberSetting = (
     return preparationDefaults[key];
   }
 
-  return clamp(Math.round(value), range.min, range.max);
+  const normalizedValue = key === "wpm" ? value : Math.round(value);
+
+  return clamp(normalizedValue, range.min, range.max);
 };
 
 const normalizePreparationDraft = (

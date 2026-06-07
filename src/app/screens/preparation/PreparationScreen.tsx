@@ -8,7 +8,7 @@ type PreparationScreenProps = {
   onStart: (draft: PreparationDraft) => void;
 };
 
-type NumericDraftKey = Exclude<keyof PreparationDraft, "text">;
+type NumericDraftKey = Exclude<keyof PreparationDraft, "text" | "wpm">;
 
 const previewWords = [
   "Train",
@@ -29,9 +29,31 @@ const previewWindowStartIndex = 5;
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+const parseValidWpm = (value: string) => {
+  if (value.trim().length === 0) {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+  const { min, max } = preparationRanges.wpm;
+
+  if (
+    !Number.isFinite(parsedValue) ||
+    parsedValue < min ||
+    parsedValue > max
+  ) {
+    return null;
+  }
+
+  return parsedValue;
+};
+
 function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
   const [draft, setDraft] = useState<PreparationDraft>(initialDraft);
-  const canStart = draft.text.trim().length > 0;
+  const [wpmInput, setWpmInput] = useState(() => String(initialDraft.wpm));
+  const validWpm = parseValidWpm(wpmInput);
+  const isWpmInvalid = wpmInput.trim().length > 0 && validWpm === null;
+  const canStart = draft.text.trim().length > 0 && validWpm !== null;
   const previewFirstVisibleWordIndex = previewWindowStartIndex;
   const previewLastVisibleWordIndex = clamp(
     previewFirstVisibleWordIndex + draft.focusWindowSize - 1,
@@ -61,12 +83,13 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
   };
 
   const handleStart = () => {
-    if (!canStart) {
+    if (!canStart || validWpm === null) {
       return;
     }
 
     onStart({
       ...draft,
+      wpm: validWpm,
     });
   };
 
@@ -118,11 +141,16 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
                   min={preparationRanges.wpm.min}
                   max={preparationRanges.wpm.max}
                   step={preparationRanges.wpm.step}
-                  value={draft.wpm}
-                  onChange={(event) => updateNumber("wpm", event.target.value)}
+                  value={wpmInput}
+                  aria-describedby="wpm-hint"
+                  aria-invalid={isWpmInvalid}
+                  onChange={(event) => setWpmInput(event.target.value)}
                 />
                 <small>WPM</small>
               </span>
+              <small className="field-hint" id="wpm-hint">
+                Use 100-5000 WPM
+              </small>
             </label>
 
             <label className="field-control" htmlFor="focus-window-size">

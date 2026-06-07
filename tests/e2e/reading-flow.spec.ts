@@ -24,6 +24,41 @@ async function setInputValue(input: Locator, value: string) {
   );
 }
 
+test("validates target speed without blocking keyboard input", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const readingMaterial = page.getByLabel("Reading material");
+  const targetSpeed = page.getByLabel("Target speed");
+  const startButton = page.getByRole("button", { name: "Start" });
+
+  await readingMaterial.fill(readingText);
+  await expect(startButton).toBeEnabled();
+
+  await targetSpeed.fill("");
+  await expect(targetSpeed).toHaveValue("");
+  await expect(startButton).toBeDisabled();
+
+  await targetSpeed.fill("99");
+  await expect(startButton).toBeDisabled();
+
+  await targetSpeed.fill("100");
+  await expect(startButton).toBeEnabled();
+
+  await targetSpeed.fill("255");
+  await expect(startButton).toBeEnabled();
+
+  await targetSpeed.fill("250.5");
+  await expect(startButton).toBeEnabled();
+
+  await targetSpeed.fill("5000");
+  await expect(startButton).toBeEnabled();
+
+  await targetSpeed.fill("5001");
+  await expect(startButton).toBeDisabled();
+});
+
 test("runs the guided reading flow and returns to setup with the same draft", async ({
   page,
 }) => {
