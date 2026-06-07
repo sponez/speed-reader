@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateFocusWindow,
-  calculateLineBoundedFocusWindow,
+  calculateLineTimedFocusWindow,
   calculateReadingProgress,
   calculateWordIntervalMs,
   createReadingSession,
@@ -259,16 +259,14 @@ describe("calculateFocusWindow", () => {
   });
 });
 
-describe("calculateLineBoundedFocusWindow", () => {
+describe("calculateLineTimedFocusWindow", () => {
   const wordLines = [
     { firstWordIndex: 0, lastWordIndex: 7 },
     { firstWordIndex: 8, lastWordIndex: 14 },
   ];
 
   it("keeps the window inside one visual line when the block fits", () => {
-    expect(
-      calculateLineBoundedFocusWindow(3, settings, 15, wordLines),
-    ).toEqual({
+    expect(calculateLineTimedFocusWindow(700, settings, 15, wordLines)).toEqual({
       activeWordIndex: 4,
       firstVisibleWordIndex: 0,
       lastVisibleWordIndex: 4,
@@ -276,9 +274,7 @@ describe("calculateLineBoundedFocusWindow", () => {
   });
 
   it("trims the window at the end of the visual line", () => {
-    expect(
-      calculateLineBoundedFocusWindow(6, settings, 15, wordLines),
-    ).toEqual({
+    expect(calculateLineTimedFocusWindow(800, settings, 15, wordLines)).toEqual({
       activeWordIndex: 7,
       firstVisibleWordIndex: 5,
       lastVisibleWordIndex: 7,
@@ -287,7 +283,7 @@ describe("calculateLineBoundedFocusWindow", () => {
 
   it("starts the next window at the beginning of the next visual line", () => {
     expect(
-      calculateLineBoundedFocusWindow(8, settings, 15, wordLines),
+      calculateLineTimedFocusWindow(1_600, settings, 15, wordLines),
     ).toEqual({
       activeWordIndex: 12,
       firstVisibleWordIndex: 8,
@@ -297,7 +293,7 @@ describe("calculateLineBoundedFocusWindow", () => {
 
   it("handles an incomplete final window on the last visual line", () => {
     expect(
-      calculateLineBoundedFocusWindow(13, settings, 15, wordLines),
+      calculateLineTimedFocusWindow(2_800, settings, 15, wordLines),
     ).toEqual({
       activeWordIndex: 14,
       firstVisibleWordIndex: 13,
@@ -305,17 +301,29 @@ describe("calculateLineBoundedFocusWindow", () => {
     });
   });
 
+  it("keeps every window on the same line visible for the same duration", () => {
+    const lineWithShortTail = [{ firstWordIndex: 0, lastWordIndex: 10 }];
+
+    expect(
+      calculateLineTimedFocusWindow(1_500, settings, 11, lineWithShortTail),
+    ).toEqual({
+      activeWordIndex: 10,
+      firstVisibleWordIndex: 10,
+      lastVisibleWordIndex: 10,
+    });
+  });
+
   it("falls back to block-based calculation when line data is empty", () => {
-    expect(calculateLineBoundedFocusWindow(6, settings, 15, [])).toEqual({
+    expect(calculateLineTimedFocusWindow(1_200, settings, 15, [])).toEqual({
       activeWordIndex: 9,
       firstVisibleWordIndex: 5,
       lastVisibleWordIndex: 9,
     });
   });
 
-  it("falls back to block-based calculation when no line contains the cursor", () => {
+  it("falls back to block-based calculation when measured lines do not cover the full text", () => {
     expect(
-      calculateLineBoundedFocusWindow(6, settings, 15, [
+      calculateLineTimedFocusWindow(1_200, settings, 15, [
         { firstWordIndex: 0, lastWordIndex: 4 },
         { firstWordIndex: 8, lastWordIndex: 14 },
       ]),
@@ -326,9 +334,19 @@ describe("calculateLineBoundedFocusWindow", () => {
     });
   });
 
+  it("clamps elapsed time to the last measured line", () => {
+    expect(
+      calculateLineTimedFocusWindow(10_000, settings, 15, wordLines),
+    ).toEqual({
+      activeWordIndex: 14,
+      firstVisibleWordIndex: 13,
+      lastVisibleWordIndex: 14,
+    });
+  });
+
   it("rejects an invalid focus window size", () => {
     expect(() =>
-      calculateLineBoundedFocusWindow(
+      calculateLineTimedFocusWindow(
         0,
         { ...settings, focusWindowSize: 0 },
         10,

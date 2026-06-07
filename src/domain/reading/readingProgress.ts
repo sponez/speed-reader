@@ -114,32 +114,74 @@ export function calculateFocusWindow(
   };
 }
 
-const findLineContainingWord = (
+const createProgressSnapshot = (
   cursorWordIndex: number,
-  wordCount: number,
-  wordLines: WordLine[],
-): WordLine | null => {
-  for (const line of wordLines) {
-    const firstWordIndex = clamp(line.firstWordIndex, 0, wordCount - 1);
-    const lastWordIndex = clamp(
-      line.lastWordIndex,
-      firstWordIndex,
-      wordCount - 1,
-    );
+  elapsedMs: number,
+): ReadingProgress => ({
+  cursorWordIndex,
+  activeWordIndex: cursorWordIndex,
+  elapsedMs,
+  isFinished: false,
+});
 
-    if (
-      cursorWordIndex >= firstWordIndex &&
-      cursorWordIndex <= lastWordIndex
-    ) {
-      return { firstWordIndex, lastWordIndex };
-    }
+const calculateElapsedCursorWordIndex = (
+  elapsedMs: number,
+  settings: ReaderSettings,
+  wordCount: number,
+) => {
+  if (wordCount === 0) {
+    return 0;
   }
 
-  return null;
+  const wordIntervalMs = calculateWordIntervalMs(settings.wpm);
+
+  return clamp(
+    Math.floor(Math.max(0, elapsedMs) / wordIntervalMs),
+    0,
+    wordCount - 1,
+  );
 };
 
-export function calculateLineBoundedFocusWindow(
-  cursorWordIndex: number,
+const normalizeWordLines = (
+  wordLines: WordLine[],
+  wordCount: number,
+): WordLine[] =>
+  wordLines
+    .map((line) => {
+      const firstWordIndex = clamp(line.firstWordIndex, 0, wordCount - 1);
+      const lastWordIndex = clamp(
+        line.lastWordIndex,
+        firstWordIndex,
+        wordCount - 1,
+      );
+
+      return { firstWordIndex, lastWordIndex };
+    })
+    .sort(
+      (firstLine, secondLine) =>
+        firstLine.firstWordIndex - secondLine.firstWordIndex,
+    );
+
+const doWordLinesCoverText = (wordLines: WordLine[], wordCount: number) => {
+  if (wordLines.length === 0) {
+    return false;
+  }
+
+  let expectedFirstWordIndex = 0;
+
+  for (const line of wordLines) {
+    if (line.firstWordIndex !== expectedFirstWordIndex) {
+      return false;
+    }
+
+    expectedFirstWordIndex = line.lastWordIndex + 1;
+  }
+
+  return expectedFirstWordIndex === wordCount;
+};
+
+export function calculateLineTimedFocusWindow(
+  elapsedMs: number,
   settings: ReaderSettings,
   wordCount: number,
   wordLines: WordLine[],
@@ -153,53 +195,72 @@ export function calculateLineBoundedFocusWindow(
   }
 
   validateFocusWindowSize(settings.focusWindowSize);
+  const safeElapsedMs = Math.max(0, elapsedMs);
+  const wordIntervalMs = calculateWordIntervalMs(settings.wpm);
+  const normalizedWordLines = normalizeWordLines(wordLines, wordCount);
 
-  if (wordLines.length === 0) {
+  if (!doWordLinesCoverText(normalizedWordLines, wordCount)) {
+    const cursorWordIndex = calculateElapsedCursorWordIndex(
+      safeElapsedMs,
+      settings,
+      wordCount,
+    );
+
     return calculateFocusWindow(
-      {
-        cursorWordIndex,
-        activeWordIndex: cursorWordIndex,
-        elapsedMs: 0,
-        isFinished: false,
-      },
+      createProgressSnapshot(cursorWordIndex, safeElapsedMs),
       settings,
       wordCount,
     );
   }
 
-  const clampedCursorWordIndex = clamp(cursorWordIndex, 0, wordCount - 1);
-  const line = findLineContainingWord(
-    clampedCursorWordIndex,
+  let elapsedBeforeLineMs = 0;
+
+  for (const [lineIndex, line] of normalizedWordLines.entries()) {
+    const lineWordCount = line.lastWordIndex - line.firstWordIndex + 1;
+    const lineDurationMs = lineWordCount * wordIntervalMs;
+    const isLastLine = lineIndex === normalizedWordLines.length - 1;
+    const isElapsedInsideLine =
+      safeElapsedMs < elapsedBeforeLineMs + lineDurationMs;
+
+    if (!isElapsedInsideLine && !isLastLine) {
+      elapsedBeforeLineMs += lineDurationMs;
+      continue;
+    }
+
+    const windowCount = Math.ceil(lineWordCount / settings.focusWindowSize);
+    const windowDurationMs = lineDurationMs / windowCount;
+    const elapsedInsideLineMs = clamp(
+      safeElapsedMs - elapsedBeforeLineMs,
+      0,
+      lineDurationMs,
+    );
+    const windowIndex = Math.min(
+      Math.floor(elapsedInsideLineMs / windowDurationMs),
+      windowCount - 1,
+    );
+    const firstVisibleWordIndex =
+      line.firstWordIndex + windowIndex * settings.focusWindowSize;
+    const lastVisibleWordIndex = Math.min(
+      firstVisibleWordIndex + settings.focusWindowSize - 1,
+      line.lastWordIndex,
+    );
+
+    return {
+      activeWordIndex: lastVisibleWordIndex,
+      firstVisibleWordIndex,
+      lastVisibleWordIndex,
+    };
+  }
+
+  const cursorWordIndex = calculateElapsedCursorWordIndex(
+    safeElapsedMs,
+    settings,
     wordCount,
-    wordLines,
   );
 
-  if (line === null) {
-    return calculateFocusWindow(
-      {
-        cursorWordIndex: clampedCursorWordIndex,
-        activeWordIndex: clampedCursorWordIndex,
-        elapsedMs: 0,
-        isFinished: false,
-      },
-      settings,
-      wordCount,
-    );
-  }
-
-  const windowSize = settings.focusWindowSize;
-  const cursorOffsetInLine = clampedCursorWordIndex - line.firstWordIndex;
-  const firstVisibleWordIndex =
-    line.firstWordIndex +
-    Math.floor(cursorOffsetInLine / windowSize) * windowSize;
-  const lastVisibleWordIndex = Math.min(
-    firstVisibleWordIndex + windowSize - 1,
-    line.lastWordIndex,
+  return calculateFocusWindow(
+    createProgressSnapshot(cursorWordIndex, safeElapsedMs),
+    settings,
+    wordCount,
   );
-
-  return {
-    activeWordIndex: lastVisibleWordIndex,
-    firstVisibleWordIndex,
-    lastVisibleWordIndex,
-  };
 }

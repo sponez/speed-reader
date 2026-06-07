@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   calculateFocusWindow,
-  calculateLineBoundedFocusWindow,
+  calculateLineTimedFocusWindow,
   calculateReadingProgress,
   type FocusWindow,
   type ReadingProgress,
@@ -25,8 +25,8 @@ const createRunnerState = (
     progress,
     focusWindow:
       wordLines.length > 0
-        ? calculateLineBoundedFocusWindow(
-            progress.cursorWordIndex,
+        ? calculateLineTimedFocusWindow(
+            progress.elapsedMs,
             session.settings,
             session.text.wordCount,
             wordLines,
