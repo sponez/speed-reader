@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GuidedWindowTextRenderer } from "../../../adapters/rendering";
 import type { ReadingSession, WordLine } from "../../../domain/reading";
 import { useReadingRunner } from "./useReadingRunner";
 import "./ReadingScreen.css";
 
 type ReadingScreenProps = {
+  onFinish: () => void;
   session: ReadingSession;
 };
 
@@ -20,7 +21,7 @@ const areWordLinesEqual = (first: WordLine[], second: WordLine[]) => {
   );
 };
 
-function ReadingScreen({ session }: ReadingScreenProps) {
+function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
   const { settings, text } = session;
   const [wordLines, setWordLines] = useState<WordLine[]>([]);
   const { focusWindow, progress } = useReadingRunner(session, wordLines);
@@ -32,6 +33,27 @@ function ReadingScreen({ session }: ReadingScreenProps) {
         : nextWordLines,
     );
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onFinish();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onFinish]);
+
+  useEffect(() => {
+    if (progress.isFinished) {
+      onFinish();
+    }
+  }, [onFinish, progress.isFinished]);
+
   const focusRange =
     focusWindow.lastVisibleWordIndex < focusWindow.firstVisibleWordIndex
       ? "None"

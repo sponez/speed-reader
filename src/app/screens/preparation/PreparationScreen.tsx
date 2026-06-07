@@ -1,12 +1,10 @@
 import { useState, type CSSProperties } from "react";
-import {
-  preparationDefaults,
-  preparationRanges,
-} from "./preparationDefaults";
+import { preparationRanges } from "./preparationDefaults";
 import type { PreparationDraft } from "./preparationTypes";
 import "./PreparationScreen.css";
 
 type PreparationScreenProps = {
+  initialDraft: PreparationDraft;
   onStart: (draft: PreparationDraft) => void;
 };
 
@@ -31,8 +29,8 @@ const previewWindowStartIndex = 5;
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-function PreparationScreen({ onStart }: PreparationScreenProps) {
-  const [draft, setDraft] = useState<PreparationDraft>(preparationDefaults);
+function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
+  const [draft, setDraft] = useState<PreparationDraft>(initialDraft);
   const canStart = draft.text.trim().length > 0;
   const previewFirstVisibleWordIndex = previewWindowStartIndex;
   const previewLastVisibleWordIndex = clamp(

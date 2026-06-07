@@ -13,6 +13,7 @@ import type {
   ReadingProgress,
   ReadingSession,
   ReadingText,
+  WordLine,
 } from "./types";
 
 const settings: ReaderSettings = {
@@ -49,6 +50,15 @@ const createProgress = (
   isFinished: false,
   ...overrides,
 });
+
+const createEvenWordLines = (
+  lineCount: number,
+  wordsPerLine: number,
+): WordLine[] =>
+  Array.from({ length: lineCount }, (_, lineIndex) => ({
+    firstWordIndex: lineIndex * wordsPerLine,
+    lastWordIndex: lineIndex * wordsPerLine + wordsPerLine - 1,
+  }));
 
 describe("calculateWordIntervalMs", () => {
   it("converts WPM into milliseconds per word", () => {
@@ -274,7 +284,7 @@ describe("calculateLineTimedFocusWindow", () => {
   });
 
   it("trims the window at the end of the visual line", () => {
-    expect(calculateLineTimedFocusWindow(800, settings, 15, wordLines)).toEqual({
+    expect(calculateLineTimedFocusWindow(900, settings, 15, wordLines)).toEqual({
       activeWordIndex: 7,
       firstVisibleWordIndex: 5,
       lastVisibleWordIndex: 7,
@@ -301,15 +311,119 @@ describe("calculateLineTimedFocusWindow", () => {
     });
   });
 
-  it("keeps every window on the same line visible for the same duration", () => {
-    const lineWithShortTail = [{ firstWordIndex: 0, lastWordIndex: 10 }];
+  it("keeps the total duration based on WPM while adding line entry time", () => {
+    const fastSettings = { ...settings, wpm: 500 };
+    const evenWordLines = createEvenWordLines(50, 20);
+    const totalDurationMs = 1_000 * calculateWordIntervalMs(fastSettings.wpm);
 
     expect(
-      calculateLineTimedFocusWindow(1_500, settings, 11, lineWithShortTail),
+      calculateLineTimedFocusWindow(689, fastSettings, 1_000, evenWordLines),
     ).toEqual({
-      activeWordIndex: 10,
+      activeWordIndex: 4,
+      firstVisibleWordIndex: 0,
+      lastVisibleWordIndex: 4,
+    });
+    expect(totalDurationMs).toBe(120_000);
+    expect(
+      calculateLineTimedFocusWindow(690, fastSettings, 1_000, evenWordLines),
+    ).toEqual({
+      activeWordIndex: 9,
+      firstVisibleWordIndex: 5,
+      lastVisibleWordIndex: 9,
+    });
+  });
+
+  it("keeps non-entry windows on a line at the compressed base duration", () => {
+    const fastSettings = { ...settings, wpm: 500 };
+    const evenWordLines = createEvenWordLines(50, 20);
+
+    expect(
+      calculateLineTimedFocusWindow(1_259, fastSettings, 1_000, evenWordLines),
+    ).toEqual({
+      activeWordIndex: 9,
+      firstVisibleWordIndex: 5,
+      lastVisibleWordIndex: 9,
+    });
+    expect(
+      calculateLineTimedFocusWindow(1_260, fastSettings, 1_000, evenWordLines),
+    ).toEqual({
+      activeWordIndex: 14,
       firstVisibleWordIndex: 10,
-      lastVisibleWordIndex: 10,
+      lastVisibleWordIndex: 14,
+    });
+  });
+
+  it("keeps a single-word line visible through its entry time", () => {
+    const linesWithSingleWordStart = [
+      { firstWordIndex: 0, lastWordIndex: 0 },
+      { firstWordIndex: 1, lastWordIndex: 5 },
+    ];
+
+    expect(
+      calculateLineTimedFocusWindow(
+        219,
+        settings,
+        6,
+        linesWithSingleWordStart,
+      ),
+    ).toEqual({
+      activeWordIndex: 0,
+      firstVisibleWordIndex: 0,
+      lastVisibleWordIndex: 0,
+    });
+    expect(
+      calculateLineTimedFocusWindow(
+        220,
+        settings,
+        6,
+        linesWithSingleWordStart,
+      ),
+    ).toEqual({
+      activeWordIndex: 5,
+      firstVisibleWordIndex: 1,
+      lastVisibleWordIndex: 5,
+    });
+  });
+
+  it("uses the full WPM duration across all line windows", () => {
+    const fastSettings = { ...settings, wpm: 500 };
+    const evenWordLines = createEvenWordLines(50, 20);
+
+    expect(
+      calculateLineTimedFocusWindow(
+        119_429,
+        fastSettings,
+        1_000,
+        evenWordLines,
+      ),
+    ).toEqual({
+      activeWordIndex: 994,
+      firstVisibleWordIndex: 990,
+      lastVisibleWordIndex: 994,
+    });
+    expect(
+      calculateLineTimedFocusWindow(
+        119_430,
+        fastSettings,
+        1_000,
+        evenWordLines,
+      ),
+    ).toEqual({
+      activeWordIndex: 999,
+      firstVisibleWordIndex: 995,
+      lastVisibleWordIndex: 999,
+    });
+    expect(
+      calculateLineTimedFocusWindow(
+        119_999,
+        fastSettings,
+        1_000,
+        evenWordLines,
+      ),
+    ).toEqual({
+      activeWordIndex: 999,
+      firstVisibleWordIndex: 995,
+      lastVisibleWordIndex: 999,
     });
   });
 

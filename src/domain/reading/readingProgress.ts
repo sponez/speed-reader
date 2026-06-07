@@ -8,6 +8,7 @@ import type {
 } from "./types";
 
 const millisecondsPerMinute = 60_000;
+const lineEntryTimeRatio = 0.05;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -214,10 +215,18 @@ export function calculateLineTimedFocusWindow(
   }
 
   let elapsedBeforeLineMs = 0;
+  const totalDurationMs = wordCount * wordIntervalMs;
+  const lineEntryBudgetMs = totalDurationMs * lineEntryTimeRatio;
+  const lineEntryDelayMs = lineEntryBudgetMs / normalizedWordLines.length;
+  const effectiveWordIntervalMs =
+    (totalDurationMs - lineEntryBudgetMs) / wordCount;
 
   for (const [lineIndex, line] of normalizedWordLines.entries()) {
     const lineWordCount = line.lastWordIndex - line.firstWordIndex + 1;
-    const lineDurationMs = lineWordCount * wordIntervalMs;
+    const windowCount = Math.ceil(lineWordCount / settings.focusWindowSize);
+    const baseLineDurationMs = lineWordCount * effectiveWordIntervalMs;
+    const baseWindowDurationMs = baseLineDurationMs / windowCount;
+    const lineDurationMs = baseLineDurationMs + lineEntryDelayMs;
     const isLastLine = lineIndex === normalizedWordLines.length - 1;
     const isElapsedInsideLine =
       safeElapsedMs < elapsedBeforeLineMs + lineDurationMs;
@@ -227,19 +236,32 @@ export function calculateLineTimedFocusWindow(
       continue;
     }
 
-    const windowCount = Math.ceil(lineWordCount / settings.focusWindowSize);
-    const windowDurationMs = lineDurationMs / windowCount;
     const elapsedInsideLineMs = clamp(
       safeElapsedMs - elapsedBeforeLineMs,
       0,
       lineDurationMs,
     );
-    const windowIndex = Math.min(
-      Math.floor(elapsedInsideLineMs / windowDurationMs),
-      windowCount - 1,
-    );
+
+    let elapsedBeforeWindowMs = 0;
+    let selectedWindowIndex = windowCount - 1;
+
+    for (let windowIndex = 0; windowIndex < windowCount; windowIndex += 1) {
+      const windowDurationMs =
+        baseWindowDurationMs + (windowIndex === 0 ? lineEntryDelayMs : 0);
+      const isLastWindow = windowIndex === windowCount - 1;
+      const isElapsedInsideWindow =
+        elapsedInsideLineMs < elapsedBeforeWindowMs + windowDurationMs;
+
+      if (isElapsedInsideWindow || isLastWindow) {
+        selectedWindowIndex = windowIndex;
+        break;
+      }
+
+      elapsedBeforeWindowMs += windowDurationMs;
+    }
+
     const firstVisibleWordIndex =
-      line.firstWordIndex + windowIndex * settings.focusWindowSize;
+      line.firstWordIndex + selectedWindowIndex * settings.focusWindowSize;
     const lastVisibleWordIndex = Math.min(
       firstVisibleWordIndex + settings.focusWindowSize - 1,
       line.lastWordIndex,
