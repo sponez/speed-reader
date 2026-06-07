@@ -167,6 +167,14 @@ function GuidedWindowTextRenderer({
           token.kind === "word" &&
           token.wordIndex === focusWindow.activeWordIndex;
         const isBlurred = shouldBlur && hasFocusWindow && !isInFocus;
+        const tokenState = [
+          isInFocus ? "focus" : "",
+          isInFocus && shouldHighlight ? "highlighted" : "",
+          isActive ? "active-anchor" : "",
+          isBlurred ? "blurred" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         const className = [
           "guided-window-token",
           token.kind === "separator"
@@ -185,6 +193,8 @@ function GuidedWindowTextRenderer({
         return (
           <span
             className={className}
+            data-token-kind={token.kind}
+            data-token-state={tokenState}
             data-word-index={
               token.kind === "word" ? token.wordIndex : undefined
             }

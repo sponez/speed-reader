@@ -38,6 +38,12 @@ Run unit tests:
 npm run test
 ```
 
+Run UI smoke tests:
+
+```powershell
+npm run test:e2e
+```
+
 Build the Windows desktop app and installers:
 
 ```powershell

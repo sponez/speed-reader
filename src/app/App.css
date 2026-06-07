@@ -29,3 +29,10 @@ textarea,
 select {
   font: inherit;
 }
+
+.app-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: #5a5a55;
+}
