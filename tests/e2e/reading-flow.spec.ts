@@ -86,9 +86,27 @@ test("runs the guided reading flow and returns to setup with the same draft", as
 
   const readingSurface = page.getByLabel("Reading surface");
   await expect(readingSurface).toBeVisible();
+  await expect(readingSurface).toHaveAttribute(
+    "data-reading-presentation",
+    "continuous",
+  );
   await expect(page.getByLabel("Reading text")).toContainText(
     "guided window renderer",
   );
+
+  await expect(
+    page.locator('[data-guided-presentation="continuous"]'),
+  ).toBeVisible();
+
+  await expect
+    .poll(async () =>
+      readingSurface.evaluate((element) => {
+        const style = window.getComputedStyle(element);
+
+        return style.overflowY;
+      }),
+    )
+    .toBe("hidden");
 
   const focusedWords = page.locator(
     '[data-token-kind="word"][data-token-state~="focus"]',
@@ -103,6 +121,26 @@ test("runs the guided reading flow and returns to setup with the same draft", as
   await expect(
     page.locator('[data-token-state~="blurred"]').first(),
   ).toBeVisible();
+
+  const focusedWordInsideSurface = await focusedWords.first().evaluate(
+    (element) => {
+      const tokenRect = element.getBoundingClientRect();
+      const surface = element.closest(".reading-surface");
+
+      if (surface === null) {
+        return false;
+      }
+
+      const surfaceRect = surface.getBoundingClientRect();
+
+      return (
+        tokenRect.top >= surfaceRect.top &&
+        tokenRect.bottom <= surfaceRect.bottom
+      );
+    },
+  );
+
+  expect(focusedWordInsideSurface).toBe(true);
 
   await page.keyboard.press("Escape");
 

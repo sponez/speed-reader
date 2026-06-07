@@ -109,7 +109,11 @@ function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
           </div>
         </dl>
 
-        <section className="reading-surface" aria-label="Reading surface">
+        <section
+          className="reading-surface"
+          aria-label="Reading surface"
+          data-reading-presentation="continuous"
+        >
           <GuidedWindowTextRenderer
             text={text}
             focusWindow={focusWindow}
