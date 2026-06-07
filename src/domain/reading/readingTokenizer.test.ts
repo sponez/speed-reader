@@ -57,6 +57,19 @@ describe("tokenizeReadingText", () => {
     ]);
   });
 
+  it("keeps hyphenated words as one word token", () => {
+    const readingText = tokenizeReadingText("кто-то asked follow-up");
+
+    expect(readingText.wordCount).toBe(3);
+    expect(readingText.tokens).toEqual([
+      { id: "token-0", text: "кто-то", kind: "word", wordIndex: 0 },
+      { id: "token-1", text: " ", kind: "separator" },
+      { id: "token-2", text: "asked", kind: "word", wordIndex: 1 },
+      { id: "token-3", text: " ", kind: "separator" },
+      { id: "token-4", text: "follow-up", kind: "word", wordIndex: 2 },
+    ]);
+  });
+
   it("assigns word indexes only to word tokens", () => {
     const readingText = tokenizeReadingText("One... two?");
     const wordIndexes = readingText.tokens.map((token) => token.wordIndex);

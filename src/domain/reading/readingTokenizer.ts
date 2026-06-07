@@ -1,9 +1,13 @@
 import type { ReadingText, Token } from "./types";
 
 const wordCharacterPattern = /[\p{L}\p{N}]/u;
+const internalWordConnectorPattern = /[-\u2010\u2011]/u;
 
 const isWordCharacter = (character: string) =>
   wordCharacterPattern.test(character);
+
+const isInternalWordConnector = (character: string) =>
+  internalWordConnectorPattern.test(character);
 
 const createToken = (
   text: string,
@@ -55,8 +59,19 @@ export function tokenizeReadingText(rawText: string): ReadingText {
     currentKind = null;
   };
 
-  for (const character of rawText) {
-    const characterKind: Token["kind"] = isWordCharacter(character)
+  const characters = Array.from(rawText);
+
+  for (const [characterIndex, character] of characters.entries()) {
+    const previousCharacter = characters[characterIndex - 1];
+    const nextCharacter = characters[characterIndex + 1];
+    const isWordConnector =
+      isInternalWordConnector(character) &&
+      previousCharacter !== undefined &&
+      nextCharacter !== undefined &&
+      isWordCharacter(previousCharacter) &&
+      isWordCharacter(nextCharacter);
+    const characterKind: Token["kind"] =
+      isWordCharacter(character) || isWordConnector
       ? "word"
       : "separator";
 

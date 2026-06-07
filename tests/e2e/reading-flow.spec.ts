@@ -6,6 +6,14 @@ const readingText = [
   "The focus window should contain a phrase, blurred words should stay outside",
   "the current phrase, and the draft should return to setup after escape.",
 ].join(" ");
+const longBookText = Array.from({ length: 28 }, (_, index) =>
+  [
+    `Section ${index + 1}.`,
+    "Long form reading material should continue onto the next page without",
+    "repeating the same visible word range on adjacent page surfaces.",
+    "This sentence adds enough length for pagination in the book presentation.",
+  ].join(" "),
+).join("\n\n");
 
 async function setInputValue(input: Locator, value: string) {
   await input.evaluate(
@@ -150,4 +158,163 @@ test("runs the guided reading flow and returns to setup with the same draft", as
   await expect(page.getByLabel("Window size")).toHaveValue("3");
   await expect(page.getByLabel("Blur intensity")).toHaveValue("4");
   await expect(page.getByLabel("Focus highlight")).toHaveValue("80");
+});
+
+test("runs the flash chunks reading flow and returns to setup", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const readingMaterial = page.getByLabel("Reading material");
+
+  await readingMaterial.fill("Alpha beta gamma delta epsilon zeta eta theta");
+  await page.getByLabel("Target speed").fill("100");
+  await page.getByText("Flash chunks", { exact: true }).click();
+  await expect(
+    page.getByRole("radio", { name: "Flash chunks" }),
+  ).toBeChecked();
+
+  await expect(page.getByLabel("Window size")).toBeHidden();
+  await page.getByLabel("Chunk size").fill("2");
+
+  await page.getByRole("button", { name: "Start" }).click();
+
+  await expect(readingMaterial).toBeHidden();
+
+  const readingSurface = page.getByLabel("Reading surface");
+  await expect(readingSurface).toHaveAttribute(
+    "data-reading-mode",
+    "flashChunks",
+  );
+  await expect(readingSurface).toHaveAttribute(
+    "data-reading-presentation",
+    "flashChunks",
+  );
+  await expect(page.getByLabel("Session metrics")).toContainText(
+    "Flash chunks",
+  );
+  await expect(page.getByLabel("Session metrics")).toContainText("2 words");
+  await expect(page.locator("[data-flash-chunks-renderer]")).toBeVisible();
+  await expect(page.locator("[data-flash-chunk-text]")).toHaveText(
+    "Alpha beta",
+  );
+
+  await expect
+    .poll(async () => page.locator("[data-flash-chunk-text]").textContent())
+    .toBe("gamma delta");
+
+  await page.keyboard.press("Escape");
+
+  await expect(readingMaterial).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: "Flash chunks" }),
+  ).toBeChecked();
+  await expect(page.getByLabel("Chunk size")).toHaveValue("2");
+});
+
+for (const presentation of [
+  {
+    label: "Feed",
+    value: "feed",
+  },
+  {
+    label: "Single page",
+    value: "singlePage",
+  },
+  {
+    label: "Book spread",
+    value: "bookSpread",
+  },
+] as const) {
+  test(`runs the ${presentation.value} guided presentation`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await page.getByLabel("Reading material").fill(readingText);
+    await page.getByLabel("Target speed").fill("120");
+    await page.getByLabel("Window size").fill("3");
+    await page.getByText(presentation.label, { exact: true }).click();
+    await expect(page.getByLabel(presentation.label)).toBeChecked();
+
+    await page.getByRole("button", { name: "Start" }).click();
+
+    const readingSurface = page.getByLabel("Reading surface");
+    await expect(readingSurface).toHaveAttribute(
+      "data-reading-presentation",
+      presentation.value,
+    );
+    await expect(
+      page.locator(`[data-guided-presentation="${presentation.value}"]`),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-token-kind="word"][data-token-state~="focus"]').first(),
+    ).toBeVisible();
+
+    if (presentation.value === "feed") {
+      await expect
+        .poll(async () =>
+          readingSurface.evaluate((element) => {
+            const style = window.getComputedStyle(element);
+
+            return style.overflowY;
+          }),
+        )
+        .toBe("auto");
+    }
+
+    if (presentation.value === "singlePage") {
+      await expect(page.getByRole("navigation", { name: "Pages" })).toContainText(
+        "Page",
+      );
+    }
+
+    if (presentation.value === "bookSpread") {
+      await expect(page.getByRole("navigation", { name: "Pages" })).toContainText(
+        "Spread",
+      );
+      await expect(
+        page.locator('.guided-window-page[data-page-side="right"]'),
+      ).toBeVisible();
+    }
+
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByLabel(presentation.label)).toBeChecked();
+  });
+}
+
+test("paginates book spread without overlapping adjacent page ranges", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await page.getByLabel("Reading material").fill(longBookText);
+  await page.getByLabel("Target speed").fill("100");
+  await page.getByLabel("Window size").fill("4");
+  await page.getByText("Book spread", { exact: true }).click();
+
+  await page.getByRole("button", { name: "Start" }).click();
+
+  const pageStage = page.locator(".guided-window-page-stage");
+
+  await expect
+    .poll(async () => Number(await pageStage.getAttribute("data-page-count")))
+    .toBeGreaterThan(1);
+
+  const visiblePageRanges = await page
+    .locator(".guided-window-page:not(.guided-window-page-empty)")
+    .evaluateAll((elements) =>
+      elements.map((element) => ({
+        firstWordIndex: Number(
+          element.getAttribute("data-page-first-word-index"),
+        ),
+        lastWordIndex: Number(element.getAttribute("data-page-last-word-index")),
+      })),
+    );
+
+  expect(visiblePageRanges.length).toBeGreaterThanOrEqual(2);
+  expect(visiblePageRanges[0].lastWordIndex).toBeLessThan(
+    visiblePageRanges[1].firstWordIndex,
+  );
 });

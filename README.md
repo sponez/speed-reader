@@ -2,7 +2,12 @@
 
 Speed Reader is a personal Windows desktop app for practicing reading speed.
 
-The current MVP focuses on a guided moving focus window mode. The existing reading surface is an early feed-style implementation; the target default guided presentation is a compact unscrollable viewport where the text moves automatically and the current line stays centered. The architecture is being kept open for additional reading modes, presentation variants, and UI themes later.
+The app currently supports two reading modes:
+
+- guided window reading, where a focused phrase moves through the text at the target WPM;
+- flash chunks, where fixed-size word chunks appear one frame at a time to train phrase recognition.
+
+The default guided presentation is a compact unscrollable viewport where the text moves automatically and the current line stays centered. Additional guided presentations are available for feed, single-page, and book-spread layouts. The architecture is being kept open for UI themes and future training modes.
 
 The app is built with Tauri 2, Vite, React, TypeScript, and npm. The Rust side stays intentionally thin and acts as the desktop shell, while the reading logic and UI live in the TypeScript frontend.
 

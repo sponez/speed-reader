@@ -4,6 +4,86 @@
   overflow: hidden;
 }
 
+.guided-window-feed-viewport {
+  height: 100%;
+  overflow: visible;
+}
+
+.guided-window-page-viewport {
+  display: grid;
+  gap: 14px;
+}
+
+.guided-window-page-stage {
+  height: clamp(300px, 48vh, 520px);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.guided-window-book-spread-viewport .guided-window-page-stage {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.guided-window-page {
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e4ded6;
+  border-radius: 8px;
+  background: #fffefa;
+  padding: clamp(16px, 2.2vw, 26px);
+}
+
+.guided-window-page-empty {
+  background:
+    linear-gradient(#fffefa, #fffefa) padding-box,
+    repeating-linear-gradient(
+      -45deg,
+      rgba(216, 209, 200, 0.35) 0,
+      rgba(216, 209, 200, 0.35) 6px,
+      rgba(255, 255, 255, 0) 6px,
+      rgba(255, 255, 255, 0) 14px
+    ) border-box;
+}
+
+.guided-window-page-text {
+  min-height: 100%;
+  transition: transform 160ms ease-out;
+}
+
+.guided-window-page-content {
+  height: 100%;
+  overflow: hidden;
+}
+
+.guided-window-page-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #655f57;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.guided-window-page-controls button {
+  min-height: 36px;
+  border: 1px solid #d8d1c8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #342f2a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guided-window-page-controls button:disabled {
+  color: #9d958d;
+  background: #ece7df;
+  cursor: not-allowed;
+}
+
 .guided-window-continuous-viewport::before,
 .guided-window-continuous-viewport::after {
   position: absolute;
@@ -77,6 +157,14 @@
 @media (max-width: 760px) {
   .guided-window-continuous-viewport {
     height: clamp(220px, 40vh, 320px);
+  }
+
+  .guided-window-book-spread-viewport .guided-window-page-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .guided-window-book-spread-viewport .guided-window-page[data-page-side="right"] {
+    display: none;
   }
 
   .guided-window-text {

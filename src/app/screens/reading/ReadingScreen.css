@@ -74,6 +74,17 @@
   padding: clamp(18px, 3vw, 32px);
 }
 
+.reading-surface[data-reading-presentation="feed"] {
+  height: clamp(360px, 56vh, 620px);
+  overflow: auto;
+}
+
+.reading-surface[data-reading-presentation="singlePage"],
+.reading-surface[data-reading-presentation="bookSpread"] {
+  width: min(100%, 1020px);
+  overflow: hidden;
+}
+
 @media (max-width: 760px) {
   .session-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

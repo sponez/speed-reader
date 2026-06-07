@@ -1,4 +1,6 @@
 import { useState, type CSSProperties } from "react";
+import { guidedWindowPresentationOptions } from "../../../adapters/rendering";
+import type { ReadingMode } from "../../../domain/reading";
 import { preparationRanges } from "./preparationDefaults";
 import type { PreparationDraft } from "./preparationTypes";
 import "./PreparationScreen.css";
@@ -8,7 +10,10 @@ type PreparationScreenProps = {
   onStart: (draft: PreparationDraft) => void;
 };
 
-type NumericDraftKey = Exclude<keyof PreparationDraft, "text" | "wpm">;
+type NumericDraftKey = Exclude<
+  keyof PreparationDraft,
+  "guidedWindowPresentation" | "readingMode" | "text" | "wpm"
+>;
 
 const previewWords = [
   "Train",
@@ -25,6 +30,13 @@ const previewWords = [
   "back",
 ];
 const previewWindowStartIndex = 5;
+const readingModeOptions: ReadonlyArray<{
+  label: string;
+  value: ReadingMode;
+}> = [
+  { label: "Guided window", value: "guidedWindow" },
+  { label: "Flash chunks", value: "flashChunks" },
+];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -61,6 +73,8 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
     previewWords.length - 1,
   );
   const previewHighlightAlpha = (draft.focusHighlightIntensity / 100) * 0.72;
+  const isGuidedMode = draft.readingMode === "guidedWindow";
+  const flashPreviewWords = previewWords.slice(0, draft.flashChunkSize);
 
   const updateNumber = (key: NumericDraftKey, value: string) => {
     const range = preparationRanges[key];
@@ -79,6 +93,22 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
     setDraft((currentDraft) => ({
       ...currentDraft,
       text,
+    }));
+  };
+
+  const updatePresentation = (
+    guidedWindowPresentation: PreparationDraft["guidedWindowPresentation"],
+  ) => {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      guidedWindowPresentation,
+    }));
+  };
+
+  const updateReadingMode = (readingMode: ReadingMode) => {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      readingMode,
     }));
   };
 
@@ -132,6 +162,30 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
           </div>
 
           <div className="settings-grid">
+            <fieldset className="segmented-control">
+              <legend>Reading mode</legend>
+              <div className="segmented-options">
+                {readingModeOptions.map((option) => (
+                  <label
+                    className="segmented-option"
+                    data-selected={
+                      draft.readingMode === option.value ? "true" : "false"
+                    }
+                    key={option.value}
+                  >
+                    <input
+                      type="radio"
+                      name="reading-mode"
+                      value={option.value}
+                      checked={draft.readingMode === option.value}
+                      onChange={() => updateReadingMode(option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <label className="field-control" htmlFor="wpm">
               <span>Target speed</span>
               <span className="input-with-unit">
@@ -153,65 +207,117 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
               </small>
             </label>
 
-            <label className="field-control" htmlFor="focus-window-size">
-              <span>Window size</span>
-              <span className="input-with-unit">
-                <input
-                  id="focus-window-size"
-                  type="number"
-                  min={preparationRanges.focusWindowSize.min}
-                  max={preparationRanges.focusWindowSize.max}
-                  step={preparationRanges.focusWindowSize.step}
-                  value={draft.focusWindowSize}
-                  onChange={(event) =>
-                    updateNumber("focusWindowSize", event.target.value)
-                  }
-                />
-                <small>words</small>
-              </span>
-            </label>
+            {isGuidedMode && (
+              <>
+                <label className="field-control" htmlFor="focus-window-size">
+                  <span>Window size</span>
+                  <span className="input-with-unit">
+                    <input
+                      id="focus-window-size"
+                      type="number"
+                      min={preparationRanges.focusWindowSize.min}
+                      max={preparationRanges.focusWindowSize.max}
+                      step={preparationRanges.focusWindowSize.step}
+                      value={draft.focusWindowSize}
+                      onChange={(event) =>
+                        updateNumber("focusWindowSize", event.target.value)
+                      }
+                    />
+                    <small>words</small>
+                  </span>
+                </label>
 
-            <label className="field-control range-control" htmlFor="blur">
-              <span>Blur intensity</span>
-              <span className="input-with-unit">
-                <input
-                  id="blur"
-                  type="range"
-                  min={preparationRanges.blurIntensity.min}
-                  max={preparationRanges.blurIntensity.max}
-                  step={preparationRanges.blurIntensity.step}
-                  value={draft.blurIntensity}
-                  onChange={(event) =>
-                    updateNumber("blurIntensity", event.target.value)
-                  }
-                />
-                <small>{draft.blurIntensity}px</small>
-              </span>
-            </label>
+                <label className="field-control range-control" htmlFor="blur">
+                  <span>Blur intensity</span>
+                  <span className="input-with-unit">
+                    <input
+                      id="blur"
+                      type="range"
+                      min={preparationRanges.blurIntensity.min}
+                      max={preparationRanges.blurIntensity.max}
+                      step={preparationRanges.blurIntensity.step}
+                      value={draft.blurIntensity}
+                      onChange={(event) =>
+                        updateNumber("blurIntensity", event.target.value)
+                      }
+                    />
+                    <small>{draft.blurIntensity}px</small>
+                  </span>
+                </label>
 
-            <label
-              className="field-control range-control"
-              htmlFor="focus-highlight"
-            >
-              <span>Focus highlight</span>
-              <span className="input-with-unit">
-                <input
-                  id="focus-highlight"
-                  type="range"
-                  min={preparationRanges.focusHighlightIntensity.min}
-                  max={preparationRanges.focusHighlightIntensity.max}
-                  step={preparationRanges.focusHighlightIntensity.step}
-                  value={draft.focusHighlightIntensity}
-                  onChange={(event) =>
-                    updateNumber(
-                      "focusHighlightIntensity",
-                      event.target.value,
-                    )
-                  }
-                />
-                <small>{draft.focusHighlightIntensity}%</small>
-              </span>
-            </label>
+                <label
+                  className="field-control range-control"
+                  htmlFor="focus-highlight"
+                >
+                  <span>Focus highlight</span>
+                  <span className="input-with-unit">
+                    <input
+                      id="focus-highlight"
+                      type="range"
+                      min={preparationRanges.focusHighlightIntensity.min}
+                      max={preparationRanges.focusHighlightIntensity.max}
+                      step={preparationRanges.focusHighlightIntensity.step}
+                      value={draft.focusHighlightIntensity}
+                      onChange={(event) =>
+                        updateNumber(
+                          "focusHighlightIntensity",
+                          event.target.value,
+                        )
+                      }
+                    />
+                    <small>{draft.focusHighlightIntensity}%</small>
+                  </span>
+                </label>
+
+                <fieldset className="segmented-control">
+                  <legend>Presentation</legend>
+                  <div className="segmented-options">
+                    {guidedWindowPresentationOptions.map((option) => (
+                      <label
+                        className="segmented-option"
+                        data-selected={
+                          draft.guidedWindowPresentation === option.value
+                            ? "true"
+                            : "false"
+                        }
+                        key={option.value}
+                      >
+                        <input
+                          type="radio"
+                          name="guided-window-presentation"
+                          value={option.value}
+                          checked={
+                            draft.guidedWindowPresentation === option.value
+                          }
+                          onChange={() => updatePresentation(option.value)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
+
+            {!isGuidedMode && (
+              <label className="field-control" htmlFor="flash-chunk-size">
+                <span>Chunk size</span>
+                <span className="input-with-unit">
+                  <input
+                    id="flash-chunk-size"
+                    type="number"
+                    min={preparationRanges.flashChunkSize.min}
+                    max={preparationRanges.flashChunkSize.max}
+                    step={preparationRanges.flashChunkSize.step}
+                    value={draft.flashChunkSize}
+                    onChange={(event) =>
+                      updateNumber("flashChunkSize", event.target.value)
+                    }
+                  />
+                  <small>words</small>
+                </span>
+              </label>
+            )}
           </div>
 
           <section className="settings-preview" aria-labelledby="preview-title">
@@ -219,36 +325,44 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
               <h2 id="preview-title">Preview</h2>
             </div>
 
-            <p
-              className="preview-text"
-              style={
-                {
-                  "--preview-blur": `${draft.blurIntensity}px`,
-                  "--preview-highlight-alpha": previewHighlightAlpha,
-                } as CSSProperties
-              }
-            >
-              {previewWords.map((word, wordIndex) => {
-                const isVisible =
-                  wordIndex >= previewFirstVisibleWordIndex &&
-                  wordIndex <= previewLastVisibleWordIndex;
-                const className = [
-                  "preview-word",
-                  isVisible ? "preview-word-focus" : "",
-                  !isVisible && draft.blurIntensity > 0
-                    ? "preview-word-blurred"
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
+            {isGuidedMode && (
+              <p
+                className="preview-text"
+                style={
+                  {
+                    "--preview-blur": `${draft.blurIntensity}px`,
+                    "--preview-highlight-alpha": previewHighlightAlpha,
+                  } as CSSProperties
+                }
+              >
+                {previewWords.map((word, wordIndex) => {
+                  const isVisible =
+                    wordIndex >= previewFirstVisibleWordIndex &&
+                    wordIndex <= previewLastVisibleWordIndex;
+                  const className = [
+                    "preview-word",
+                    isVisible ? "preview-word-focus" : "",
+                    !isVisible && draft.blurIntensity > 0
+                      ? "preview-word-blurred"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
-                return (
-                  <span className={className} key={`${word}-${wordIndex}`}>
-                    {word}
-                  </span>
-                );
-              })}
-            </p>
+                  return (
+                    <span className={className} key={`${word}-${wordIndex}`}>
+                      {word}
+                    </span>
+                  );
+                })}
+              </p>
+            )}
+
+            {!isGuidedMode && (
+              <p className="flash-preview" aria-label="Flash chunks preview">
+                {flashPreviewWords.join(" ")}
+              </p>
+            )}
           </section>
 
           <button className="start-button" type="submit" disabled={!canStart}>

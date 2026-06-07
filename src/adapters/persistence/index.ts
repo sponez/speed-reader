@@ -2,8 +2,11 @@ import { Store } from "@tauri-apps/plugin-store";
 
 export type PreparationDraftSnapshot = Partial<{
   blurIntensity: number;
+  flashChunkSize: number;
   focusHighlightIntensity: number;
   focusWindowSize: number;
+  guidedWindowPresentation: string;
+  readingMode: string;
   text: string;
   wpm: number;
 }>;
@@ -34,8 +37,11 @@ export async function loadPreparationDraftSnapshot(): Promise<PreparationDraftSn
 
     return {
       blurIntensity: readNumber(storedValue.blurIntensity),
+      flashChunkSize: readNumber(storedValue.flashChunkSize),
       focusHighlightIntensity: readNumber(storedValue.focusHighlightIntensity),
       focusWindowSize: readNumber(storedValue.focusWindowSize),
+      guidedWindowPresentation: readString(storedValue.guidedWindowPresentation),
+      readingMode: readString(storedValue.readingMode),
       text: readString(storedValue.text),
       wpm: readNumber(storedValue.wpm),
     };

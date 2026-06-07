@@ -4,9 +4,13 @@ import {
   savePreparationDraftSnapshot,
   type PreparationDraftSnapshot,
 } from "../adapters/persistence";
+import { isGuidedWindowPresentation } from "../adapters/rendering";
 import {
+  createFlashChunksSession,
   createReadingSession,
   tokenizeReadingText,
+  type FlashChunksSession,
+  type FlashChunksSettings,
   type ReaderSettings,
   type ReadingSession,
 } from "../domain/reading";
@@ -22,9 +26,16 @@ import "./App.css";
 type AppState =
   | { mode: "loading" }
   | { mode: "preparing"; draft: PreparationDraft }
-  | { mode: "reading"; draft: PreparationDraft; session: ReadingSession };
+  | { mode: "reading"; draft: PreparationDraft; session: ActiveReadingSession };
 
-type NumericDraftKey = Exclude<keyof PreparationDraft, "text">;
+type ActiveReadingSession =
+  | { mode: "guidedWindow"; session: ReadingSession }
+  | { mode: "flashChunks"; session: FlashChunksSession };
+
+type NumericDraftKey = Exclude<
+  keyof PreparationDraft,
+  "guidedWindowPresentation" | "readingMode" | "text"
+>;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -48,6 +59,20 @@ const normalizePreparationDraft = (
   snapshot: PreparationDraftSnapshot | null,
 ): PreparationDraft => ({
   text: snapshot?.text ?? preparationDefaults.text,
+  readingMode:
+    snapshot?.readingMode === "flashChunks" ||
+    snapshot?.readingMode === "guidedWindow"
+      ? snapshot.readingMode
+      : preparationDefaults.readingMode,
+  guidedWindowPresentation: isGuidedWindowPresentation(
+    snapshot?.guidedWindowPresentation,
+  )
+    ? snapshot.guidedWindowPresentation
+    : preparationDefaults.guidedWindowPresentation,
+  flashChunkSize: normalizeNumberSetting(
+    "flashChunkSize",
+    snapshot?.flashChunkSize,
+  ),
   wpm: normalizeNumberSetting("wpm", snapshot?.wpm),
   focusWindowSize: normalizeNumberSetting(
     "focusWindowSize",
@@ -90,25 +115,35 @@ function App() {
   }, []);
 
   const handleStart = async (draft: PreparationDraft) => {
-    const {
-      text,
-      wpm,
-      focusWindowSize,
-      blurIntensity,
-      focusHighlightIntensity,
-    } = draft;
+    const { text, wpm } = draft;
     const settings: ReaderSettings = {
       wpm,
-      focusWindowSize,
-      blurIntensity,
-      focusHighlightIntensity,
+      focusWindowSize: draft.focusWindowSize,
+      blurIntensity: draft.blurIntensity,
+      focusHighlightIntensity: draft.focusHighlightIntensity,
     };
     const readingText = tokenizeReadingText(text);
-    const session = createReadingSession(
-      readingText,
-      settings,
-      performance.now(),
-    );
+    const session: ActiveReadingSession =
+      draft.readingMode === "flashChunks"
+        ? {
+            mode: "flashChunks",
+            session: createFlashChunksSession(
+              readingText,
+              {
+                wpm,
+                chunkSize: draft.flashChunkSize,
+              } satisfies FlashChunksSettings,
+              performance.now(),
+            ),
+          }
+        : {
+            mode: "guidedWindow",
+            session: createReadingSession(
+              readingText,
+              settings,
+              performance.now(),
+            ),
+          };
 
     await savePreparationDraftSnapshot(draft);
 
@@ -143,7 +178,11 @@ function App() {
         <PreparationScreen initialDraft={appState.draft} onStart={handleStart} />
       )}
       {appState.mode === "reading" && (
-        <ReadingScreen session={appState.session} onFinish={handleFinish} />
+        <ReadingScreen
+          activeSession={appState.session}
+          presentation={appState.draft.guidedWindowPresentation}
+          onFinish={handleFinish}
+        />
       )}
     </>
   );

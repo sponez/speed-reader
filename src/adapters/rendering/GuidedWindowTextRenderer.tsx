@@ -11,6 +11,10 @@ import type {
   Token,
   WordLine,
 } from "../../domain/reading";
+import {
+  defaultGuidedWindowPresentation,
+  type GuidedWindowPresentation,
+} from "./guidedWindowPresentation";
 import "./GuidedWindowTextRenderer.css";
 
 type GuidedWindowTextRendererProps = {
@@ -19,6 +23,7 @@ type GuidedWindowTextRendererProps = {
   blurIntensity: number;
   focusHighlightIntensity: number;
   onWordLinesChange?: (wordLines: WordLine[]) => void;
+  presentation?: GuidedWindowPresentation;
 };
 
 type MeasuredWord = {
@@ -30,6 +35,11 @@ type MeasuredWord = {
 type MeasuredWordLine = WordLine & {
   bottom: number;
   centerY: number;
+  top: number;
+};
+
+type GuidedPage = WordLine & {
+  bottom: number;
   top: number;
 };
 
@@ -116,18 +126,130 @@ const calculateSurfaceOffset = (
   return clamp(desiredOffset, minOffset, 0);
 };
 
+const buildPages = (
+  lineLayouts: MeasuredWordLine[],
+  pageContentHeight: number,
+): GuidedPage[] => {
+  if (lineLayouts.length === 0 || pageContentHeight <= 0) {
+    return [];
+  }
+
+  const pageHeight = Math.max(1, pageContentHeight);
+  const pages: GuidedPage[] = [];
+  let pageFirstLine = lineLayouts[0];
+  let pageLastLine = lineLayouts[0];
+
+  for (const line of lineLayouts) {
+    if (
+      line !== pageFirstLine &&
+      line.bottom - pageFirstLine.top > pageHeight
+    ) {
+      pages.push({
+        bottom: pageLastLine.bottom,
+        firstWordIndex: pageFirstLine.firstWordIndex,
+        lastWordIndex: pageLastLine.lastWordIndex,
+        top: pageFirstLine.top,
+      });
+      pageFirstLine = line;
+    }
+
+    pageLastLine = line;
+  }
+
+  pages.push({
+    bottom: pageLastLine.bottom,
+    firstWordIndex: pageFirstLine.firstWordIndex,
+    lastWordIndex: pageLastLine.lastWordIndex,
+    top: pageFirstLine.top,
+  });
+
+  return pages;
+};
+
+const getTokenState = (
+  token: Token,
+  tokens: Token[],
+  tokenIndex: number,
+  focusWindow: FocusWindow,
+  hasFocusWindow: boolean,
+  shouldBlur: boolean,
+  shouldHighlight: boolean,
+) => {
+  const tokenWordIndex = getTokenWordIndex(token, tokens, tokenIndex);
+  const isInFocus =
+    hasFocusWindow &&
+    tokenWordIndex !== null &&
+    tokenWordIndex >= focusWindow.firstVisibleWordIndex &&
+    tokenWordIndex <= focusWindow.lastVisibleWordIndex;
+  const isActive =
+    token.kind === "word" && token.wordIndex === focusWindow.activeWordIndex;
+  const isBlurred = shouldBlur && hasFocusWindow && !isInFocus;
+  const tokenState = [
+    isInFocus ? "focus" : "",
+    isInFocus && shouldHighlight ? "highlighted" : "",
+    isActive ? "active-anchor" : "",
+    isBlurred ? "blurred" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const className = [
+    "guided-window-token",
+    token.kind === "separator"
+      ? "guided-window-token-separator"
+      : "guided-window-token-word",
+    isInFocus ? "guided-window-token-focus" : "",
+    isInFocus && shouldHighlight ? "guided-window-token-highlighted" : "",
+    isActive ? "guided-window-token-active-anchor" : "",
+    isBlurred ? "guided-window-token-blurred" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    className,
+    tokenState,
+  };
+};
+
 function GuidedWindowTextRenderer({
   text,
   focusWindow,
   blurIntensity,
   focusHighlightIntensity,
   onWordLinesChange,
+  presentation = defaultGuidedWindowPresentation,
 }: GuidedWindowTextRendererProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pageContentRef = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<HTMLElement | null>(null);
   const [lineLayouts, setLineLayouts] = useState<MeasuredWordLine[]>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageContentHeight, setPageContentHeight] = useState(0);
   const [surfaceHeight, setSurfaceHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const measuredPageContentHeight =
+    pageContentHeight > 0 ? pageContentHeight : viewportHeight;
+  const pages = buildPages(lineLayouts, measuredPageContentHeight);
+  const pageCount = Math.max(1, pages.length);
+  const clampedPageIndex = clamp(pageIndex, 0, pageCount - 1);
+  const spreadIndex = clampedPageIndex - (clampedPageIndex % 2);
+  const fallbackPage: GuidedPage = {
+    bottom: 0,
+    firstWordIndex: 0,
+    lastWordIndex: Math.max(0, text.wordCount - 1),
+    top: 0,
+  };
+  const currentPage = pages[clampedPageIndex];
+  const currentSpreadPages = [
+    pages[spreadIndex],
+    pages[spreadIndex + 1],
+  ].filter((page): page is GuidedPage => page !== undefined);
+  const displayedPages: Array<GuidedPage | null> =
+    presentation === "bookSpread"
+      ? currentSpreadPages.length > 0
+        ? [currentSpreadPages[0], currentSpreadPages[1] ?? null]
+        : [fallbackPage, null]
+      : [currentPage ?? fallbackPage];
   const hasFocusWindow =
     text.wordCount > 0 &&
     focusWindow.lastVisibleWordIndex >= focusWindow.firstVisibleWordIndex;
@@ -140,8 +262,18 @@ function GuidedWindowTextRenderer({
     viewportHeight,
     surfaceHeight,
   );
+  const isPagePresentation =
+    presentation === "bookSpread" || presentation === "singlePage";
+  const currentPageLabel =
+    presentation === "bookSpread"
+      ? `${Math.floor(spreadIndex / 2) + 1} / ${Math.max(
+          1,
+          Math.ceil(pageCount / 2),
+        )}`
+      : `${clampedPageIndex + 1} / ${pageCount}`;
   const measureWordLines = useCallback(() => {
     const viewport = viewportRef.current;
+    const pageContent = pageContentRef.current;
     const surface = surfaceRef.current;
 
     if (viewport === null || surface === null) {
@@ -151,6 +283,7 @@ function GuidedWindowTextRenderer({
     const surfaceRect = surface.getBoundingClientRect();
 
     setViewportHeight(viewport.clientHeight);
+    setPageContentHeight(pageContent?.clientHeight ?? 0);
     setSurfaceHeight(surface.scrollHeight);
 
     const measuredWords = Array.from(
@@ -225,6 +358,7 @@ function GuidedWindowTextRenderer({
     measureWordLines();
 
     const viewport = viewportRef.current;
+    const pageContent = pageContentRef.current;
     const surface = surfaceRef.current;
 
     if (viewport === null || surface === null) {
@@ -235,80 +369,174 @@ function GuidedWindowTextRenderer({
     observer.observe(viewport);
     observer.observe(surface);
 
+    if (pageContent !== null) {
+      observer.observe(pageContent);
+    }
+
     return () => observer.disconnect();
   }, [measureWordLines, text.tokens]);
+
+  useLayoutEffect(() => {
+    setPageIndex((currentPageIndex) => clamp(currentPageIndex, 0, pageCount - 1));
+  }, [pageCount]);
+
+  const renderTokens = () =>
+    text.tokens.map((token, tokenIndex) => {
+      const { className, tokenState } = getTokenState(
+        token,
+        text.tokens,
+        tokenIndex,
+        focusWindow,
+        hasFocusWindow,
+        shouldBlur,
+        shouldHighlight,
+      );
+
+      return (
+        <span
+          className={className}
+          data-token-kind={token.kind}
+          data-token-state={tokenState}
+          data-word-index={token.kind === "word" ? token.wordIndex : undefined}
+          key={token.id}
+        >
+          {token.text}
+        </span>
+      );
+    });
+
+  const surfaceStyle = (offsetY: number, edgeSpace = 0) =>
+    ({
+      "--guided-window-blur": `${blurIntensity}px`,
+      "--guided-window-edge-space": `${edgeSpace}px`,
+      "--guided-window-highlight-alpha": focusHighlightAlpha,
+      transform: `translateY(${offsetY}px)`,
+    }) as CSSProperties;
+
+  if (presentation === "feed") {
+    return (
+      <div
+        ref={viewportRef}
+        className="guided-window-feed-viewport"
+        data-guided-presentation="feed"
+      >
+        <article
+          ref={surfaceRef}
+          className="guided-window-text"
+          style={surfaceStyle(0)}
+          aria-label="Reading text"
+        >
+          {renderTokens()}
+        </article>
+      </div>
+    );
+  }
+
+  if (isPagePresentation) {
+    return (
+      <div
+        ref={viewportRef}
+        className={[
+          "guided-window-page-viewport",
+          presentation === "bookSpread"
+            ? "guided-window-book-spread-viewport"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        data-guided-presentation={presentation}
+      >
+        <div
+          className="guided-window-page-stage"
+          data-page-count={pageCount}
+          data-page-index={clampedPageIndex}
+        >
+          {displayedPages.map((page, index) => (
+            <div
+              className={[
+                "guided-window-page",
+                page === null ? "guided-window-page-empty" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-page-first-word-index={page?.firstWordIndex}
+              data-page-last-word-index={page?.lastWordIndex}
+              data-page-side={index === 0 ? "left" : "right"}
+              key={`${page?.firstWordIndex ?? "empty"}-${index}`}
+            >
+              <div
+                ref={index === 0 ? pageContentRef : undefined}
+                className="guided-window-page-content"
+              >
+                {page === null ? null : (
+                  <article
+                    ref={index === 0 ? surfaceRef : undefined}
+                    className="guided-window-text guided-window-page-text"
+                    style={surfaceStyle(-page.top)}
+                    aria-label={index === 0 ? "Reading text" : undefined}
+                    aria-hidden={index === 0 ? undefined : true}
+                  >
+                    {renderTokens()}
+                  </article>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <nav className="guided-window-page-controls" aria-label="Pages">
+          <button
+            type="button"
+            disabled={clampedPageIndex <= 0}
+            onClick={() =>
+              setPageIndex((currentPageIndex) =>
+                presentation === "bookSpread"
+                  ? clamp(currentPageIndex - 2, 0, pageCount - 1)
+                  : clamp(currentPageIndex - 1, 0, pageCount - 1),
+              )
+            }
+          >
+            Previous
+          </button>
+          <span>
+            {presentation === "bookSpread" ? "Spread" : "Page"}{" "}
+            {currentPageLabel}
+          </span>
+          <button
+            type="button"
+            disabled={
+              presentation === "bookSpread"
+                ? spreadIndex + 2 >= pageCount
+                : clampedPageIndex >= pageCount - 1
+            }
+            onClick={() =>
+              setPageIndex((currentPageIndex) =>
+                presentation === "bookSpread"
+                  ? clamp(currentPageIndex + 2, 0, pageCount - 1)
+                  : clamp(currentPageIndex + 1, 0, pageCount - 1),
+              )
+            }
+          >
+            Next
+          </button>
+        </nav>
+      </div>
+    );
+  }
 
   return (
     <div
       ref={viewportRef}
       className="guided-window-continuous-viewport"
-      data-guided-presentation="continuous"
+      data-guided-presentation={defaultGuidedWindowPresentation}
     >
       <article
         ref={surfaceRef}
         className="guided-window-text"
-        style={
-          {
-            "--guided-window-blur": `${blurIntensity}px`,
-            "--guided-window-edge-space": `${viewportHeight / 2}px`,
-            "--guided-window-highlight-alpha": focusHighlightAlpha,
-            transform: `translateY(${surfaceOffsetY}px)`,
-          } as CSSProperties
-        }
+        style={surfaceStyle(surfaceOffsetY, viewportHeight / 2)}
         aria-label="Reading text"
       >
-        {text.tokens.map((token, tokenIndex) => {
-          const tokenWordIndex = getTokenWordIndex(
-            token,
-            text.tokens,
-            tokenIndex,
-          );
-          const isInFocus =
-            hasFocusWindow &&
-            tokenWordIndex !== null &&
-            tokenWordIndex >= focusWindow.firstVisibleWordIndex &&
-            tokenWordIndex <= focusWindow.lastVisibleWordIndex;
-          const isActive =
-            token.kind === "word" &&
-            token.wordIndex === focusWindow.activeWordIndex;
-          const isBlurred = shouldBlur && hasFocusWindow && !isInFocus;
-          const tokenState = [
-            isInFocus ? "focus" : "",
-            isInFocus && shouldHighlight ? "highlighted" : "",
-            isActive ? "active-anchor" : "",
-            isBlurred ? "blurred" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-          const className = [
-            "guided-window-token",
-            token.kind === "separator"
-              ? "guided-window-token-separator"
-              : "guided-window-token-word",
-            isInFocus ? "guided-window-token-focus" : "",
-            isInFocus && shouldHighlight
-              ? "guided-window-token-highlighted"
-              : "",
-            isActive ? "guided-window-token-active-anchor" : "",
-            isBlurred ? "guided-window-token-blurred" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-
-          return (
-            <span
-              className={className}
-              data-token-kind={token.kind}
-              data-token-state={tokenState}
-              data-word-index={
-                token.kind === "word" ? token.wordIndex : undefined
-              }
-              key={token.id}
-            >
-              {token.text}
-            </span>
-          );
-        })}
+        {renderTokens()}
       </article>
     </div>
   );

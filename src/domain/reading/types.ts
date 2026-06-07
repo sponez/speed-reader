@@ -5,6 +5,8 @@ export type ReaderSettings = {
   focusHighlightIntensity: number;
 };
 
+export type ReadingMode = "guidedWindow" | "flashChunks";
+
 export type ReadingText = {
   rawText: string;
   tokens: Token[];
@@ -41,4 +43,30 @@ export type FocusWindow = {
 export type WordLine = {
   firstWordIndex: number;
   lastWordIndex: number;
+};
+
+export type FlashChunksSettings = {
+  wpm: number;
+  chunkSize: number;
+};
+
+export type FlashChunk = {
+  firstWordIndex: number;
+  lastWordIndex: number;
+  text: string;
+  wordCount: number;
+};
+
+export type FlashChunksSession = {
+  text: ReadingText;
+  settings: FlashChunksSettings;
+  chunks: FlashChunk[];
+  startedAtMs: number;
+  status: "running" | "finished";
+};
+
+export type FlashChunksProgress = {
+  currentChunkIndex: number;
+  elapsedMs: number;
+  isFinished: boolean;
 };

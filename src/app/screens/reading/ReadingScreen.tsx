@@ -1,12 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-import { GuidedWindowTextRenderer } from "../../../adapters/rendering";
-import type { ReadingSession, WordLine } from "../../../domain/reading";
+import {
+  FlashChunksRenderer,
+  GuidedWindowTextRenderer,
+  type GuidedWindowPresentation,
+} from "../../../adapters/rendering";
+import type {
+  FlashChunksSession,
+  ReadingSession,
+  WordLine,
+} from "../../../domain/reading";
+import { useFlashChunksRunner } from "./useFlashChunksRunner";
 import { useReadingRunner } from "./useReadingRunner";
 import "./ReadingScreen.css";
 
+type ActiveReadingSession =
+  | { mode: "guidedWindow"; session: ReadingSession }
+  | { mode: "flashChunks"; session: FlashChunksSession };
+
 type ReadingScreenProps = {
+  activeSession: ActiveReadingSession;
   onFinish: () => void;
-  session: ReadingSession;
+  presentation: GuidedWindowPresentation;
 };
 
 const areWordLinesEqual = (first: WordLine[], second: WordLine[]) => {
@@ -21,7 +35,13 @@ const areWordLinesEqual = (first: WordLine[], second: WordLine[]) => {
   );
 };
 
-function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
+function GuidedReadingScreen({
+  onFinish,
+  presentation,
+  session,
+}: Omit<ReadingScreenProps, "activeSession"> & {
+  session: Extract<ActiveReadingSession, { mode: "guidedWindow" }>["session"];
+}) {
   const { settings, text } = session;
   const [wordLines, setWordLines] = useState<WordLine[]>([]);
   const { focusWindow, progress } = useReadingRunner(session, wordLines);
@@ -33,20 +53,6 @@ function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
         : nextWordLines,
     );
   }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onFinish();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onFinish]);
 
   useEffect(() => {
     if (progress.isFinished) {
@@ -112,7 +118,8 @@ function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
         <section
           className="reading-surface"
           aria-label="Reading surface"
-          data-reading-presentation="continuous"
+          data-reading-mode="guidedWindow"
+          data-reading-presentation={presentation}
         >
           <GuidedWindowTextRenderer
             text={text}
@@ -120,10 +127,119 @@ function ReadingScreen({ onFinish, session }: ReadingScreenProps) {
             blurIntensity={settings.blurIntensity}
             focusHighlightIntensity={settings.focusHighlightIntensity}
             onWordLinesChange={handleWordLinesChange}
+            presentation={presentation}
           />
         </section>
       </section>
     </main>
+  );
+}
+
+function FlashChunksReadingScreen({
+  onFinish,
+  session,
+}: {
+  onFinish: () => void;
+  session: Extract<ActiveReadingSession, { mode: "flashChunks" }>["session"];
+}) {
+  const { progress } = useFlashChunksRunner(session);
+  const currentChunk = session.chunks[progress.currentChunkIndex];
+  const elapsedSeconds = (progress.elapsedMs / 1_000).toFixed(1);
+
+  useEffect(() => {
+    if (progress.isFinished) {
+      onFinish();
+    }
+  }, [onFinish, progress.isFinished]);
+
+  return (
+    <main className="reading-screen">
+      <section className="reading-status" aria-labelledby="reading-title">
+        <p className="reading-kicker">Reading session</p>
+        <h1 id="reading-title">Speed Reader</h1>
+
+        <dl className="session-metrics" aria-label="Session metrics">
+          <div>
+            <dt>Status</dt>
+            <dd>{progress.isFinished ? "finished" : "running"}</dd>
+          </div>
+          <div>
+            <dt>Mode</dt>
+            <dd>Flash chunks</dd>
+          </div>
+          <div>
+            <dt>Words</dt>
+            <dd>{session.text.wordCount}</dd>
+          </div>
+          <div>
+            <dt>Target speed</dt>
+            <dd>{session.settings.wpm} WPM</dd>
+          </div>
+          <div>
+            <dt>Chunk size</dt>
+            <dd>{session.settings.chunkSize} words</dd>
+          </div>
+          <div>
+            <dt>Chunk</dt>
+            <dd>
+              {session.chunks.length === 0
+                ? "0 / 0"
+                : `${progress.currentChunkIndex + 1} / ${session.chunks.length}`}
+            </dd>
+          </div>
+          <div>
+            <dt>Elapsed</dt>
+            <dd>{elapsedSeconds}s</dd>
+          </div>
+        </dl>
+
+        <section
+          className="reading-surface"
+          aria-label="Reading surface"
+          data-reading-mode="flashChunks"
+          data-reading-presentation="flashChunks"
+        >
+          <FlashChunksRenderer chunk={currentChunk} />
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function ReadingScreen({
+  activeSession,
+  onFinish,
+  presentation,
+}: ReadingScreenProps) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onFinish();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onFinish]);
+
+  if (activeSession.mode === "flashChunks") {
+    return (
+      <FlashChunksReadingScreen
+        session={activeSession.session}
+        onFinish={onFinish}
+      />
+    );
+  }
+
+  return (
+    <GuidedReadingScreen
+      session={activeSession.session}
+      presentation={presentation}
+      onFinish={onFinish}
+    />
   );
 }
 
