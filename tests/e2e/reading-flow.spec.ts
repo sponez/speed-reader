@@ -160,6 +160,37 @@ test("runs the guided reading flow and returns to setup with the same draft", as
   await expect(page.getByLabel("Focus highlight")).toHaveValue("80");
 });
 
+test("applies themes to setup and reading screens", async ({ page }) => {
+  await page.goto("/");
+
+  const preparationScreen = page.locator(".preparation-screen");
+  await expect(preparationScreen).toHaveAttribute("data-app-theme", "light");
+
+  await page.getByText("Dark", { exact: true }).click();
+  await expect(preparationScreen).toHaveAttribute("data-app-theme", "dark");
+
+  const warmth = page.getByLabel("Warmth");
+  await expect(warmth).toBeVisible();
+  await setInputValue(warmth, "75");
+
+  await page.getByLabel("Reading material").fill(readingText);
+  await page.getByLabel("Target speed").fill("120");
+  await page.getByRole("button", { name: "Start" }).click();
+
+  const readingScreen = page.locator(".reading-screen");
+  await expect(readingScreen).toHaveAttribute("data-app-theme", "dark");
+  await expect(readingScreen).toHaveCSS("--app-warmth-intensity", "75%");
+
+  await page.keyboard.press("Escape");
+
+  await expect(page.locator(".preparation-screen")).toHaveAttribute(
+    "data-app-theme",
+    "dark",
+  );
+  await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
+  await expect(page.getByLabel("Warmth")).toHaveValue("75");
+});
+
 test("runs the flash chunks reading flow and returns to setup", async ({
   page,
 }) => {
@@ -170,6 +201,7 @@ test("runs the flash chunks reading flow and returns to setup", async ({
   await readingMaterial.fill("Alpha beta gamma delta epsilon zeta eta theta");
   await page.getByLabel("Target speed").fill("100");
   await page.getByText("Flash chunks", { exact: true }).click();
+  await page.getByText("Dark", { exact: true }).click();
   await expect(
     page.getByRole("radio", { name: "Flash chunks" }),
   ).toBeChecked();
@@ -189,6 +221,10 @@ test("runs the flash chunks reading flow and returns to setup", async ({
   await expect(readingSurface).toHaveAttribute(
     "data-reading-presentation",
     "flashChunks",
+  );
+  await expect(page.locator(".reading-screen")).toHaveAttribute(
+    "data-app-theme",
+    "dark",
   );
   await expect(page.getByLabel("Session metrics")).toContainText(
     "Flash chunks",

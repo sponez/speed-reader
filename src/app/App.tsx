@@ -21,6 +21,7 @@ import {
 } from "./screens/preparation/preparationDefaults";
 import type { PreparationDraft } from "./screens/preparation/preparationTypes";
 import ReadingScreen from "./screens/reading/ReadingScreen";
+import { normalizeAppTheme, normalizeWarmthIntensity } from "./theme";
 import "./App.css";
 
 type AppState =
@@ -34,7 +35,7 @@ type ActiveReadingSession =
 
 type NumericDraftKey = Exclude<
   keyof PreparationDraft,
-  "guidedWindowPresentation" | "readingMode" | "text"
+  "guidedWindowPresentation" | "readingMode" | "text" | "theme"
 >;
 
 const clamp = (value: number, min: number, max: number) =>
@@ -59,6 +60,8 @@ const normalizePreparationDraft = (
   snapshot: PreparationDraftSnapshot | null,
 ): PreparationDraft => ({
   text: snapshot?.text ?? preparationDefaults.text,
+  theme: normalizeAppTheme(snapshot?.theme),
+  warmthIntensity: normalizeWarmthIntensity(snapshot?.warmthIntensity),
   readingMode:
     snapshot?.readingMode === "flashChunks" ||
     snapshot?.readingMode === "guidedWindow"
@@ -181,6 +184,10 @@ function App() {
         <ReadingScreen
           activeSession={appState.session}
           presentation={appState.draft.guidedWindowPresentation}
+          themeSettings={{
+            theme: appState.draft.theme,
+            warmthIntensity: appState.draft.warmthIntensity,
+          }}
           onFinish={handleFinish}
         />
       )}

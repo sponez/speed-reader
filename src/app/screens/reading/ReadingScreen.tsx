@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   FlashChunksRenderer,
   GuidedWindowTextRenderer,
@@ -9,6 +9,7 @@ import type {
   ReadingSession,
   WordLine,
 } from "../../../domain/reading";
+import type { ThemeSettings } from "../../theme";
 import { useFlashChunksRunner } from "./useFlashChunksRunner";
 import { useReadingRunner } from "./useReadingRunner";
 import "./ReadingScreen.css";
@@ -21,6 +22,7 @@ type ReadingScreenProps = {
   activeSession: ActiveReadingSession;
   onFinish: () => void;
   presentation: GuidedWindowPresentation;
+  themeSettings: ThemeSettings;
 };
 
 const areWordLinesEqual = (first: WordLine[], second: WordLine[]) => {
@@ -39,6 +41,7 @@ function GuidedReadingScreen({
   onFinish,
   presentation,
   session,
+  themeSettings,
 }: Omit<ReadingScreenProps, "activeSession"> & {
   session: Extract<ActiveReadingSession, { mode: "guidedWindow" }>["session"];
 }) {
@@ -67,7 +70,15 @@ function GuidedReadingScreen({
   const elapsedSeconds = (progress.elapsedMs / 1_000).toFixed(1);
 
   return (
-    <main className="reading-screen">
+    <main
+      className="reading-screen"
+      data-app-theme={themeSettings.theme}
+      style={
+        {
+          "--app-warmth-intensity": `${themeSettings.warmthIntensity}%`,
+        } as CSSProperties
+      }
+    >
       <section className="reading-status" aria-labelledby="reading-title">
         <p className="reading-kicker">Reading session</p>
         <h1 id="reading-title">Speed Reader</h1>
@@ -138,9 +149,11 @@ function GuidedReadingScreen({
 function FlashChunksReadingScreen({
   onFinish,
   session,
+  themeSettings,
 }: {
   onFinish: () => void;
   session: Extract<ActiveReadingSession, { mode: "flashChunks" }>["session"];
+  themeSettings: ThemeSettings;
 }) {
   const { progress } = useFlashChunksRunner(session);
   const currentChunk = session.chunks[progress.currentChunkIndex];
@@ -153,7 +166,15 @@ function FlashChunksReadingScreen({
   }, [onFinish, progress.isFinished]);
 
   return (
-    <main className="reading-screen">
+    <main
+      className="reading-screen"
+      data-app-theme={themeSettings.theme}
+      style={
+        {
+          "--app-warmth-intensity": `${themeSettings.warmthIntensity}%`,
+        } as CSSProperties
+      }
+    >
       <section className="reading-status" aria-labelledby="reading-title">
         <p className="reading-kicker">Reading session</p>
         <h1 id="reading-title">Speed Reader</h1>
@@ -210,6 +231,7 @@ function ReadingScreen({
   activeSession,
   onFinish,
   presentation,
+  themeSettings,
 }: ReadingScreenProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -229,6 +251,7 @@ function ReadingScreen({
     return (
       <FlashChunksReadingScreen
         session={activeSession.session}
+        themeSettings={themeSettings}
         onFinish={onFinish}
       />
     );
@@ -238,6 +261,7 @@ function ReadingScreen({
     <GuidedReadingScreen
       session={activeSession.session}
       presentation={presentation}
+      themeSettings={themeSettings}
       onFinish={onFinish}
     />
   );

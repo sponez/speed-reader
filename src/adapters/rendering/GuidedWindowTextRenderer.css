@@ -29,21 +29,21 @@
   box-sizing: border-box;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #e4ded6;
+  border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: #fffefa;
+  background: var(--app-reading-page);
   padding: clamp(16px, 2.2vw, 26px);
 }
 
 .guided-window-page-empty {
   background:
-    linear-gradient(#fffefa, #fffefa) padding-box,
+    linear-gradient(var(--app-reading-page), var(--app-reading-page)) padding-box,
     repeating-linear-gradient(
       -45deg,
-      rgba(216, 209, 200, 0.35) 0,
-      rgba(216, 209, 200, 0.35) 6px,
-      rgba(255, 255, 255, 0) 6px,
-      rgba(255, 255, 255, 0) 14px
+      color-mix(in srgb, var(--app-border-strong), transparent 55%) 0,
+      color-mix(in srgb, var(--app-border-strong), transparent 55%) 6px,
+      transparent 6px,
+      transparent 14px
     ) border-box;
 }
 
@@ -62,25 +62,25 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #655f57;
+  color: var(--app-text-kicker);
   font-size: 0.875rem;
   font-weight: 700;
 }
 
 .guided-window-page-controls button {
   min-height: 36px;
-  border: 1px solid #d8d1c8;
+  border: 1px solid var(--app-border-strong);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--app-surface-raised);
   padding: 0 12px;
-  color: #342f2a;
+  color: var(--app-text-soft);
   font-weight: 700;
   cursor: pointer;
 }
 
 .guided-window-page-controls button:disabled {
-  color: #9d958d;
-  background: #ece7df;
+  color: var(--app-text-disabled);
+  background: var(--app-disabled-bg);
   cursor: not-allowed;
 }
 
@@ -97,12 +97,12 @@
 
 .guided-window-continuous-viewport::before {
   top: 0;
-  background: linear-gradient(#ffffff, rgba(255, 255, 255, 0));
+  background: linear-gradient(var(--app-surface-raised), var(--reading-fade-start));
 }
 
 .guided-window-continuous-viewport::after {
   bottom: 0;
-  background: linear-gradient(rgba(255, 255, 255, 0), #ffffff);
+  background: linear-gradient(var(--reading-fade-start), var(--app-surface-raised));
 }
 
 .guided-window-text {
@@ -110,7 +110,7 @@
   --guided-window-edge-space: 0px;
   --guided-window-highlight-alpha: 0.47;
   width: 100%;
-  color: #1e1b18;
+  color: var(--app-text-strong);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.25rem;
   line-height: 1.85;
@@ -142,7 +142,10 @@
 }
 
 .guided-window-token-highlighted {
-  background: rgba(215, 236, 228, var(--guided-window-highlight-alpha));
+  background: rgba(
+    var(--reading-focus-bg-rgb),
+    var(--guided-window-highlight-alpha)
+  );
 }
 
 .guided-window-token-active-anchor {
@@ -151,6 +154,7 @@
 
 .guided-window-token-blurred {
   filter: blur(var(--guided-window-blur));
+  color: var(--reading-blurred-text);
   opacity: 0.58;
 }
 

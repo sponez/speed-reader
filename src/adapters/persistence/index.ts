@@ -8,6 +8,8 @@ export type PreparationDraftSnapshot = Partial<{
   guidedWindowPresentation: string;
   readingMode: string;
   text: string;
+  theme: string;
+  warmthIntensity: number;
   wpm: number;
 }>;
 
@@ -43,6 +45,8 @@ export async function loadPreparationDraftSnapshot(): Promise<PreparationDraftSn
       guidedWindowPresentation: readString(storedValue.guidedWindowPresentation),
       readingMode: readString(storedValue.readingMode),
       text: readString(storedValue.text),
+      theme: readString(storedValue.theme),
+      warmthIntensity: readNumber(storedValue.warmthIntensity),
       wpm: readNumber(storedValue.wpm),
     };
   } catch {
@@ -51,7 +55,7 @@ export async function loadPreparationDraftSnapshot(): Promise<PreparationDraftSn
 }
 
 export async function savePreparationDraftSnapshot(
-  snapshot: Required<PreparationDraftSnapshot>,
+  snapshot: PreparationDraftSnapshot,
 ) {
   try {
     const store = await loadReaderStore();

@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { guidedWindowPresentationOptions } from "../../../adapters/rendering";
 import type { ReadingMode } from "../../../domain/reading";
+import { themeRanges, type AppTheme } from "../../theme";
 import { preparationRanges } from "./preparationDefaults";
 import type { PreparationDraft } from "./preparationTypes";
 import "./PreparationScreen.css";
@@ -12,7 +13,7 @@ type PreparationScreenProps = {
 
 type NumericDraftKey = Exclude<
   keyof PreparationDraft,
-  "guidedWindowPresentation" | "readingMode" | "text" | "wpm"
+  "guidedWindowPresentation" | "readingMode" | "text" | "theme" | "wpm"
 >;
 
 const previewWords = [
@@ -20,22 +21,49 @@ const previewWords = [
   "your",
   "eyes",
   "to",
-  "follow",
+  "notice",
+  "whole",
+  "phrases",
+  "while",
+  "the",
+  "guided",
+  "window",
+  "moves",
+  "across",
   "a",
-  "steady",
-  "reading",
+  "longer",
+  "preview",
+  "line",
+  "with",
+  "enough",
+  "words",
+  "to",
+  "show",
+  "the",
+  "largest",
   "focus",
+  "span",
   "without",
-  "drifting",
-  "back",
+  "cutting",
+  "the",
+  "visible",
+  "phrase",
+  "short",
 ];
-const previewWindowStartIndex = 5;
+const previewWindowStartIndex = 6;
 const readingModeOptions: ReadonlyArray<{
   label: string;
   value: ReadingMode;
 }> = [
   { label: "Guided window", value: "guidedWindow" },
   { label: "Flash chunks", value: "flashChunks" },
+];
+const themeOptions: ReadonlyArray<{
+  label: string;
+  value: AppTheme;
+}> = [
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
 ];
 
 const clamp = (value: number, min: number, max: number) =>
@@ -112,6 +140,13 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
     }));
   };
 
+  const updateTheme = (theme: AppTheme) => {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      theme,
+    }));
+  };
+
   const handleStart = () => {
     if (!canStart || validWpm === null) {
       return;
@@ -124,7 +159,15 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
   };
 
   return (
-    <main className="preparation-screen">
+    <main
+      className="preparation-screen"
+      data-app-theme={draft.theme}
+      style={
+        {
+          "--app-warmth-intensity": `${draft.warmthIntensity}%`,
+        } as CSSProperties
+      }
+    >
       <section className="preparation-header" aria-labelledby="screen-title">
         <p className="preparation-kicker">Reading setup</p>
         <h1 id="screen-title">Speed Reader</h1>
@@ -205,6 +248,49 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
               <small className="field-hint" id="wpm-hint">
                 Use 100-5000 WPM
               </small>
+            </label>
+
+            <fieldset className="segmented-control">
+              <legend>Theme</legend>
+              <div className="segmented-options">
+                {themeOptions.map((option) => (
+                  <label
+                    className="segmented-option"
+                    data-selected={draft.theme === option.value ? "true" : "false"}
+                    key={option.value}
+                  >
+                    <input
+                      type="radio"
+                      name="app-theme"
+                      value={option.value}
+                      checked={draft.theme === option.value}
+                      onChange={() => updateTheme(option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <label
+              className="field-control range-control"
+              htmlFor="warmth-intensity"
+            >
+              <span>Warmth</span>
+              <span className="input-with-unit">
+                <input
+                  id="warmth-intensity"
+                  type="range"
+                  min={themeRanges.warmthIntensity.min}
+                  max={themeRanges.warmthIntensity.max}
+                  step={themeRanges.warmthIntensity.step}
+                  value={draft.warmthIntensity}
+                  onChange={(event) =>
+                    updateNumber("warmthIntensity", event.target.value)
+                  }
+                />
+                <small>{draft.warmthIntensity}%</small>
+              </span>
             </label>
 
             {isGuidedMode && (
