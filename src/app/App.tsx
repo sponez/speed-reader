@@ -72,10 +72,6 @@ const normalizePreparationDraft = (
   )
     ? snapshot.guidedWindowPresentation
     : preparationDefaults.guidedWindowPresentation,
-  flashChunkSize: normalizeNumberSetting(
-    "flashChunkSize",
-    snapshot?.flashChunkSize,
-  ),
   wpm: normalizeNumberSetting("wpm", snapshot?.wpm),
   focusWindowSize: normalizeNumberSetting(
     "focusWindowSize",
@@ -134,7 +130,7 @@ function App() {
               readingText,
               {
                 wpm,
-                chunkSize: draft.flashChunkSize,
+                focusWindowSize: draft.focusWindowSize,
               } satisfies FlashChunksSettings,
               performance.now(),
             ),

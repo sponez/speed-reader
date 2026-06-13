@@ -7,6 +7,7 @@ describe("tokenizeReadingText", () => {
     expect(tokenizeReadingText("")).toEqual({
       rawText: "",
       tokens: [],
+      wordSentences: [],
       wordCount: 0,
     });
   });
@@ -81,5 +82,28 @@ describe("tokenizeReadingText", () => {
     const rawText = "  Hello\nworld  ";
 
     expect(tokenizeReadingText(rawText).rawText).toBe(rawText);
+  });
+
+  it("builds sentence word ranges from basic sentence punctuation", () => {
+    expect(tokenizeReadingText("One two. Three four? Five!").wordSentences).toEqual([
+      { firstWordIndex: 0, lastWordIndex: 1 },
+      { firstWordIndex: 2, lastWordIndex: 3 },
+      { firstWordIndex: 4, lastWordIndex: 4 },
+    ]);
+  });
+
+  it("keeps repeated sentence punctuation inside one sentence boundary", () => {
+    expect(tokenizeReadingText("One two?! Three... Four").wordSentences).toEqual([
+      { firstWordIndex: 0, lastWordIndex: 1 },
+      { firstWordIndex: 2, lastWordIndex: 2 },
+      { firstWordIndex: 3, lastWordIndex: 3 },
+    ]);
+  });
+
+  it("creates the final sentence without trailing punctuation", () => {
+    expect(tokenizeReadingText("One two. Three four").wordSentences).toEqual([
+      { firstWordIndex: 0, lastWordIndex: 1 },
+      { firstWordIndex: 2, lastWordIndex: 3 },
+    ]);
   });
 });

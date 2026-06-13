@@ -30,6 +30,7 @@ const createRunnerState = (
             session.settings,
             session.text.wordCount,
             wordLines,
+            session.text.wordSentences,
           )
         : calculateFocusWindow(
             progress,

@@ -5,80 +5,134 @@ import {
   calculateFlashChunkDurationMs,
   calculateFlashChunksProgress,
   createFlashChunksSession,
-  validateFlashChunkSize,
+  validateFlashWindowSize,
 } from "./flashChunks";
 import { tokenizeReadingText } from "./readingTokenizer";
 import type { FlashChunksSettings } from "./types";
 
 const settings: FlashChunksSettings = {
   wpm: 300,
-  chunkSize: 3,
+  focusWindowSize: 3,
 };
 
 describe("buildFlashChunks", () => {
   it("builds chunks by the requested chunk size", () => {
-    const text = tokenizeReadingText("One two three four five six seven");
+    const text = tokenizeReadingText("One two three four five six");
 
-    expect(buildFlashChunks(text, 3)).toEqual([
+    expect(buildFlashChunks(text, settings)).toEqual([
       {
         firstWordIndex: 0,
         lastWordIndex: 2,
         text: "One two three",
         wordCount: 3,
+        durationMs: 600,
       },
       {
         firstWordIndex: 3,
         lastWordIndex: 5,
         text: "four five six",
         wordCount: 3,
+        durationMs: 600,
+      },
+    ]);
+  });
+
+  it("keeps chunks inside sentence boundaries", () => {
+    const text = tokenizeReadingText("One two. Three four five six.");
+
+    expect(buildFlashChunks(text, settings)).toEqual([
+      {
+        firstWordIndex: 0,
+        lastWordIndex: 1,
+        text: "One two.",
+        wordCount: 2,
+        durationMs: 400,
       },
       {
-        firstWordIndex: 6,
-        lastWordIndex: 6,
-        text: "seven",
+        firstWordIndex: 2,
+        lastWordIndex: 4,
+        text: "Three four five",
+        wordCount: 3,
+        durationMs: 400,
+      },
+      {
+        firstWordIndex: 5,
+        lastWordIndex: 5,
+        text: "six.",
         wordCount: 1,
+        durationMs: 400,
+      },
+    ]);
+  });
+
+  it("falls back to word-based chunks when sentence ranges are invalid", () => {
+    const text = {
+      ...tokenizeReadingText("One two. Three four five six."),
+      wordSentences: [],
+    };
+
+    expect(buildFlashChunks(text, settings)).toEqual([
+      {
+        firstWordIndex: 0,
+        lastWordIndex: 2,
+        text: "One two. Three",
+        wordCount: 3,
+        durationMs: 600,
+      },
+      {
+        firstWordIndex: 3,
+        lastWordIndex: 5,
+        text: "four five six.",
+        wordCount: 3,
+        durationMs: 600,
       },
     ]);
   });
 
   it("returns no chunks for empty text", () => {
-    expect(buildFlashChunks(tokenizeReadingText(""), 3)).toEqual([]);
+    expect(buildFlashChunks(tokenizeReadingText(""), settings)).toEqual([]);
   });
 
   it("attaches adjacent punctuation to chunk text", () => {
     const text = tokenizeReadingText('"Hello, world!" Кто-то ответил.');
 
-    expect(buildFlashChunks(text, 1)).toEqual([
+    expect(
+      buildFlashChunks(text, { ...settings, focusWindowSize: 1 }),
+    ).toEqual([
       {
         firstWordIndex: 0,
         lastWordIndex: 0,
         text: '"Hello,',
         wordCount: 1,
+        durationMs: 200,
       },
       {
         firstWordIndex: 1,
         lastWordIndex: 1,
         text: 'world!"',
         wordCount: 1,
+        durationMs: 200,
       },
       {
         firstWordIndex: 2,
         lastWordIndex: 2,
         text: "Кто-то",
         wordCount: 1,
+        durationMs: 200,
       },
       {
         firstWordIndex: 3,
         lastWordIndex: 3,
         text: "ответил.",
         wordCount: 1,
+        durationMs: 200,
       },
     ]);
   });
 
-  it("rejects a non-positive chunk size", () => {
-    expect(() => validateFlashChunkSize(0)).toThrow(
-      "Flash chunk size must be greater than 0.",
+  it("rejects a non-positive window size", () => {
+    expect(() => validateFlashWindowSize(0)).toThrow(
+      "Flash window size must be greater than 0.",
     );
   });
 });
@@ -104,16 +158,16 @@ describe("createFlashChunksSession", () => {
 });
 
 describe("calculateFlashChunksProgress", () => {
-  it("calculates frame duration from WPM and the actual chunk word count", () => {
+  it("calculates equal frame duration from the virtual line budget", () => {
     const text = tokenizeReadingText("One two three four");
     const session = createFlashChunksSession(text, settings, 1_000);
 
-    expect(calculateFlashChunkDurationMs(session.chunks[0], 300)).toBe(600);
-    expect(calculateFlashChunkDurationMs(session.chunks[1], 300)).toBe(200);
+    expect(calculateFlashChunkDurationMs(session.chunks[0], 300)).toBe(400);
+    expect(calculateFlashChunkDurationMs(session.chunks[1], 300)).toBe(400);
   });
 
   it("keeps the sum of chunk durations equal to the WPM duration", () => {
-    const text = tokenizeReadingText("One two three four five six seven");
+    const text = tokenizeReadingText("One two three four five six");
     const session = createFlashChunksSession(text, settings, 1_000);
     const totalChunkDurationMs = session.chunks.reduce(
       (totalDurationMs, chunk) =>
@@ -121,11 +175,11 @@ describe("calculateFlashChunksProgress", () => {
       0,
     );
 
-    expect(totalChunkDurationMs).toBe(1_400);
+    expect(totalChunkDurationMs).toBe(1_200);
   });
 
   it("selects the current chunk by elapsed time", () => {
-    const text = tokenizeReadingText("One two three four five six seven");
+    const text = tokenizeReadingText("One two three four five six");
     const session = createFlashChunksSession(text, settings, 1_000);
 
     expect(calculateFlashChunksProgress(session, 1_000)).toEqual({

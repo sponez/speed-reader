@@ -5,16 +5,17 @@ Speed Reader is a personal Windows desktop app for practicing faster reading.
 It is built around two training modes:
 
 - guided window reading, where a focused phrase moves through the text at the selected WPM;
-- flash chunks, where fixed-size word groups appear one frame at a time to train phrase recognition.
+- flash chunks, where the same sentence-bounded phrase windows appear one evenly timed frame at a time to train phrase recognition.
 
-The default guided presentation is a compact non-scrollable reading viewport. The text moves automatically, the current visual line stays near the center, and the focus window moves through the line without crossing visual line boundaries. A manual feed, a single-page layout, and a book-spread layout are also available.
+The default guided presentation is a compact non-scrollable reading viewport. The text moves automatically, the current visual line stays near the center, and the focus window moves through sentence-bounded phrase segments without crossing sentence or visual line boundaries. A manual feed, a single-page layout, and a book-spread layout are also available.
 
 The app is local-first: no backend, no account, no sync. Settings and the last pasted text are saved through Tauri Store.
 
 ## Features
 
 - Guided window mode with phrase-sized focus windows.
-- Flash chunks mode with configurable chunk size.
+- Sentence-bounded focus windows for guided reading.
+- Flash chunks mode using the same configurable sentence-bounded window size and equal frame timing.
 - Target speed input from `100` to `5000` WPM.
 - Adjustable focus window size from `1` to `20` words.
 - Blur can be reduced to `0` and fully disabled.

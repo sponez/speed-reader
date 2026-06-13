@@ -4,7 +4,9 @@ import type {
   ReadingProgress,
   ReadingSession,
   ReadingText,
+  ReadingWindow,
   WordLine,
+  WordSentence,
 } from "./types";
 
 const millisecondsPerMinute = 60_000;
@@ -163,22 +165,223 @@ const normalizeWordLines = (
         firstLine.firstWordIndex - secondLine.firstWordIndex,
     );
 
-const doWordLinesCoverText = (wordLines: WordLine[], wordCount: number) => {
-  if (wordLines.length === 0) {
-    return false;
+const normalizeWordSentences = (
+  wordSentences: WordSentence[],
+  wordCount: number,
+): WordSentence[] =>
+  wordSentences
+    .map((sentence) => {
+      const firstWordIndex = clamp(sentence.firstWordIndex, 0, wordCount - 1);
+      const lastWordIndex = clamp(
+        sentence.lastWordIndex,
+        firstWordIndex,
+        wordCount - 1,
+      );
+
+      return { firstWordIndex, lastWordIndex };
+    })
+    .sort(
+      (firstSentence, secondSentence) =>
+        firstSentence.firstWordIndex - secondSentence.firstWordIndex,
+    );
+
+const doWordRangesCoverText = (
+  wordRanges: Array<{ firstWordIndex: number; lastWordIndex: number }>,
+  wordCount: number,
+) => {
+  if (wordRanges.length === 0) {
+    return wordCount === 0;
   }
 
   let expectedFirstWordIndex = 0;
 
-  for (const line of wordLines) {
-    if (line.firstWordIndex !== expectedFirstWordIndex) {
+  for (const range of wordRanges) {
+    if (range.firstWordIndex !== expectedFirstWordIndex) {
       return false;
     }
 
-    expectedFirstWordIndex = line.lastWordIndex + 1;
+    expectedFirstWordIndex = range.lastWordIndex + 1;
   }
 
   return expectedFirstWordIndex === wordCount;
+};
+
+type FocusSegment = {
+  firstWordIndex: number;
+  lastWordIndex: number;
+  lineIndex: number;
+};
+
+const createLineSegments = (wordLines: WordLine[]): FocusSegment[] =>
+  wordLines.map((line, lineIndex) => ({
+    firstWordIndex: line.firstWordIndex,
+    lastWordIndex: line.lastWordIndex,
+    lineIndex,
+  }));
+
+export function buildSentenceBoundedWindows(
+  wordSentences: WordSentence[],
+  focusWindowSize: number,
+  firstRangeWordIndex: number,
+  lastRangeWordIndex: number,
+): ReadingWindow[] {
+  validateFocusWindowSize(focusWindowSize);
+
+  if (firstRangeWordIndex > lastRangeWordIndex) {
+    return [];
+  }
+
+  const windows: ReadingWindow[] = [];
+
+  for (const sentence of wordSentences) {
+    const firstWindowWordIndex = Math.max(
+      sentence.firstWordIndex,
+      firstRangeWordIndex,
+    );
+    const lastWindowWordIndex = Math.min(
+      sentence.lastWordIndex,
+      lastRangeWordIndex,
+    );
+
+    if (firstWindowWordIndex > lastWindowWordIndex) {
+      continue;
+    }
+
+    let firstWordIndex = firstWindowWordIndex;
+
+    while (firstWordIndex <= lastWindowWordIndex) {
+      const lastWordIndex = Math.min(
+        firstWordIndex + focusWindowSize - 1,
+        lastWindowWordIndex,
+      );
+
+      windows.push({
+        firstWordIndex,
+        lastWordIndex,
+        wordCount: lastWordIndex - firstWordIndex + 1,
+      });
+
+      firstWordIndex = lastWordIndex + 1;
+    }
+  }
+
+  return windows;
+}
+
+const createFallbackWindows = (
+  focusWindowSize: number,
+  firstRangeWordIndex: number,
+  lastRangeWordIndex: number,
+): ReadingWindow[] =>
+  buildSentenceBoundedWindows(
+    [
+      {
+        firstWordIndex: firstRangeWordIndex,
+        lastWordIndex: lastRangeWordIndex,
+      },
+    ],
+    focusWindowSize,
+    firstRangeWordIndex,
+    lastRangeWordIndex,
+  );
+
+const getSentenceBoundedWindowsForRange = (
+  wordSentences: WordSentence[],
+  focusWindowSize: number,
+  firstRangeWordIndex: number,
+  lastRangeWordIndex: number,
+): ReadingWindow[] => {
+  const windows = buildSentenceBoundedWindows(
+    wordSentences,
+    focusWindowSize,
+    firstRangeWordIndex,
+    lastRangeWordIndex,
+  );
+
+  return windows.length > 0
+    ? windows
+    : createFallbackWindows(
+        focusWindowSize,
+        firstRangeWordIndex,
+        lastRangeWordIndex,
+      );
+};
+
+const calculateSegmentTimedFocusWindow = (
+  elapsedMs: number,
+  settings: ReaderSettings,
+  wordCount: number,
+  segments: FocusSegment[],
+  wordSentences: WordSentence[],
+): FocusWindow => {
+  const wordIntervalMs = calculateWordIntervalMs(settings.wpm);
+  const totalDurationMs = wordCount * wordIntervalMs;
+  const lineCount = new Set(
+    segments.map((segment) => segment.lineIndex),
+  ).size;
+  const lineEntryBudgetMs =
+    lineCount > 1 ? totalDurationMs * lineEntryTimeRatio : 0;
+  const lineEntryDelayMs =
+    lineCount > 1 ? lineEntryBudgetMs / (lineCount - 1) : 0;
+  const lineReadingBudgetMs = totalDurationMs - lineEntryBudgetMs;
+  const lineBudgetMs = lineReadingBudgetMs / lineCount;
+  let elapsedBeforeSegmentMs = 0;
+
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const windows = getSentenceBoundedWindowsForRange(
+      wordSentences,
+      settings.focusWindowSize,
+      segment.firstWordIndex,
+      segment.lastWordIndex,
+    );
+    const baseWindowDurationMs = lineBudgetMs / windows.length;
+    const previousSegment = segments[segmentIndex - 1];
+    const hasLineEntryDelay =
+      previousSegment !== undefined &&
+      previousSegment.lineIndex !== segment.lineIndex;
+    const segmentDurationMs =
+      lineBudgetMs + (hasLineEntryDelay ? lineEntryDelayMs : 0);
+    const isLastSegment = segmentIndex === segments.length - 1;
+    const isElapsedInsideSegment =
+      elapsedMs < elapsedBeforeSegmentMs + segmentDurationMs;
+
+    if (!isElapsedInsideSegment && !isLastSegment) {
+      elapsedBeforeSegmentMs += segmentDurationMs;
+      continue;
+    }
+
+    const elapsedInsideSegmentMs = clamp(
+      elapsedMs -
+        elapsedBeforeSegmentMs -
+        (hasLineEntryDelay ? lineEntryDelayMs : 0),
+      0,
+      lineBudgetMs,
+    );
+    const selectedWindowIndex = clamp(
+      Math.floor(elapsedInsideSegmentMs / baseWindowDurationMs),
+      0,
+      windows.length - 1,
+    );
+    const selectedWindow = windows[selectedWindowIndex];
+
+    return {
+      activeWordIndex: selectedWindow.lastWordIndex,
+      firstVisibleWordIndex: selectedWindow.firstWordIndex,
+      lastVisibleWordIndex: selectedWindow.lastWordIndex,
+    };
+  }
+
+  const cursorWordIndex = calculateElapsedCursorWordIndex(
+    elapsedMs,
+    settings,
+    wordCount,
+  );
+
+  return calculateFocusWindow(
+    createProgressSnapshot(cursorWordIndex, elapsedMs),
+    settings,
+    wordCount,
+  );
 };
 
 export function calculateLineTimedFocusWindow(
@@ -186,6 +389,7 @@ export function calculateLineTimedFocusWindow(
   settings: ReaderSettings,
   wordCount: number,
   wordLines: WordLine[],
+  wordSentences: WordSentence[] = [],
 ): FocusWindow {
   if (wordCount === 0) {
     return {
@@ -197,10 +401,12 @@ export function calculateLineTimedFocusWindow(
 
   validateFocusWindowSize(settings.focusWindowSize);
   const safeElapsedMs = Math.max(0, elapsedMs);
-  const wordIntervalMs = calculateWordIntervalMs(settings.wpm);
-  const normalizedWordLines = normalizeWordLines(wordLines, wordCount);
+  const normalizedWordSentences = normalizeWordSentences(
+    wordSentences,
+    wordCount,
+  );
 
-  if (!doWordLinesCoverText(normalizedWordLines, wordCount)) {
+  if (!doWordRangesCoverText(normalizedWordSentences, wordCount)) {
     const cursorWordIndex = calculateElapsedCursorWordIndex(
       safeElapsedMs,
       settings,
@@ -214,75 +420,57 @@ export function calculateLineTimedFocusWindow(
     );
   }
 
-  let elapsedBeforeLineMs = 0;
-  const totalDurationMs = wordCount * wordIntervalMs;
-  const lineEntryBudgetMs = totalDurationMs * lineEntryTimeRatio;
-  const lineEntryDelayMs = lineEntryBudgetMs / normalizedWordLines.length;
-  const effectiveWordIntervalMs =
-    (totalDurationMs - lineEntryBudgetMs) / wordCount;
+  const normalizedWordLines = normalizeWordLines(wordLines, wordCount);
 
-  for (const [lineIndex, line] of normalizedWordLines.entries()) {
-    const lineWordCount = line.lastWordIndex - line.firstWordIndex + 1;
-    const windowCount = Math.ceil(lineWordCount / settings.focusWindowSize);
-    const baseLineDurationMs = lineWordCount * effectiveWordIntervalMs;
-    const baseWindowDurationMs = baseLineDurationMs / windowCount;
-    const lineDurationMs = baseLineDurationMs + lineEntryDelayMs;
-    const isLastLine = lineIndex === normalizedWordLines.length - 1;
-    const isElapsedInsideLine =
-      safeElapsedMs < elapsedBeforeLineMs + lineDurationMs;
+  if (!doWordRangesCoverText(normalizedWordLines, wordCount)) {
+    const sentenceSegments = createLineSegments([
+      { firstWordIndex: 0, lastWordIndex: wordCount - 1 },
+    ]);
 
-    if (!isElapsedInsideLine && !isLastLine) {
-      elapsedBeforeLineMs += lineDurationMs;
-      continue;
+    if (!doWordRangesCoverText(sentenceSegments, wordCount)) {
+      const cursorWordIndex = calculateElapsedCursorWordIndex(
+        safeElapsedMs,
+        settings,
+        wordCount,
+      );
+
+      return calculateFocusWindow(
+        createProgressSnapshot(cursorWordIndex, safeElapsedMs),
+        settings,
+        wordCount,
+      );
     }
 
-    const elapsedInsideLineMs = clamp(
-      safeElapsedMs - elapsedBeforeLineMs,
-      0,
-      lineDurationMs,
+    return calculateSegmentTimedFocusWindow(
+      safeElapsedMs,
+      settings,
+      wordCount,
+      sentenceSegments,
+      normalizedWordSentences,
     );
-
-    let elapsedBeforeWindowMs = 0;
-    let selectedWindowIndex = windowCount - 1;
-
-    for (let windowIndex = 0; windowIndex < windowCount; windowIndex += 1) {
-      const windowDurationMs =
-        baseWindowDurationMs + (windowIndex === 0 ? lineEntryDelayMs : 0);
-      const isLastWindow = windowIndex === windowCount - 1;
-      const isElapsedInsideWindow =
-        elapsedInsideLineMs < elapsedBeforeWindowMs + windowDurationMs;
-
-      if (isElapsedInsideWindow || isLastWindow) {
-        selectedWindowIndex = windowIndex;
-        break;
-      }
-
-      elapsedBeforeWindowMs += windowDurationMs;
-    }
-
-    const firstVisibleWordIndex =
-      line.firstWordIndex + selectedWindowIndex * settings.focusWindowSize;
-    const lastVisibleWordIndex = Math.min(
-      firstVisibleWordIndex + settings.focusWindowSize - 1,
-      line.lastWordIndex,
-    );
-
-    return {
-      activeWordIndex: lastVisibleWordIndex,
-      firstVisibleWordIndex,
-      lastVisibleWordIndex,
-    };
   }
 
-  const cursorWordIndex = calculateElapsedCursorWordIndex(
+  const lineSegments = createLineSegments(normalizedWordLines);
+
+  if (!doWordRangesCoverText(lineSegments, wordCount)) {
+    const cursorWordIndex = calculateElapsedCursorWordIndex(
+      safeElapsedMs,
+      settings,
+      wordCount,
+    );
+
+    return calculateFocusWindow(
+      createProgressSnapshot(cursorWordIndex, safeElapsedMs),
+      settings,
+      wordCount,
+    );
+  }
+
+  return calculateSegmentTimedFocusWindow(
     safeElapsedMs,
     settings,
     wordCount,
-  );
-
-  return calculateFocusWindow(
-    createProgressSnapshot(cursorWordIndex, safeElapsedMs),
-    settings,
-    wordCount,
+    lineSegments,
+    normalizedWordSentences,
   );
 }

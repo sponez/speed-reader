@@ -198,16 +198,16 @@ test("runs the flash chunks reading flow and returns to setup", async ({
 
   const readingMaterial = page.getByLabel("Reading material");
 
-  await readingMaterial.fill("Alpha beta gamma delta epsilon zeta eta theta");
+  await readingMaterial.fill("Alpha beta. Gamma delta epsilon zeta eta theta.");
   await page.getByLabel("Target speed").fill("100");
+  await page.getByLabel("Window size").fill("2");
   await page.getByText("Flash chunks", { exact: true }).click();
   await page.getByText("Dark", { exact: true }).click();
   await expect(
     page.getByRole("radio", { name: "Flash chunks" }),
   ).toBeChecked();
 
-  await expect(page.getByLabel("Window size")).toBeHidden();
-  await page.getByLabel("Chunk size").fill("2");
+  await expect(page.getByLabel("Window size")).toBeVisible();
 
   await page.getByRole("button", { name: "Start" }).click();
 
@@ -232,12 +232,12 @@ test("runs the flash chunks reading flow and returns to setup", async ({
   await expect(page.getByLabel("Session metrics")).toContainText("2 words");
   await expect(page.locator("[data-flash-chunks-renderer]")).toBeVisible();
   await expect(page.locator("[data-flash-chunk-text]")).toHaveText(
-    "Alpha beta",
+    "Alpha beta.",
   );
 
   await expect
     .poll(async () => page.locator("[data-flash-chunk-text]").textContent())
-    .toBe("gamma delta");
+    .toBe("Gamma delta");
 
   await page.keyboard.press("Escape");
 
@@ -245,7 +245,7 @@ test("runs the flash chunks reading flow and returns to setup", async ({
   await expect(
     page.getByRole("radio", { name: "Flash chunks" }),
   ).toBeChecked();
-  await expect(page.getByLabel("Chunk size")).toHaveValue("2");
+  await expect(page.getByLabel("Window size")).toHaveValue("2");
 });
 
 for (const presentation of [

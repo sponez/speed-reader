@@ -197,8 +197,8 @@ function FlashChunksReadingScreen({
             <dd>{session.settings.wpm} WPM</dd>
           </div>
           <div>
-            <dt>Chunk size</dt>
-            <dd>{session.settings.chunkSize} words</dd>
+            <dt>Window size</dt>
+            <dd>{session.settings.focusWindowSize} words</dd>
           </div>
           <div>
             <dt>Chunk</dt>

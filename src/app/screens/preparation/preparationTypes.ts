@@ -4,7 +4,6 @@ import type { ThemeSettings } from "../../theme";
 
 export type PreparationDraft = ReaderSettings &
   ThemeSettings & {
-  flashChunkSize: number;
   guidedWindowPresentation: GuidedWindowPresentation;
   readingMode: ReadingMode;
   text: string;

@@ -1,4 +1,4 @@
-import type { ReadingText, Token } from "./types";
+import type { ReadingText, Token, WordSentence } from "./types";
 
 const wordCharacterPattern = /[\p{L}\p{N}]/u;
 const internalWordConnectorPattern = /[-\u2010\u2011]/u;
@@ -29,6 +29,44 @@ const createToken = (
     text,
     kind,
   };
+};
+
+const hasSentenceBoundary = (text: string) => /[.!?]/u.test(text);
+
+const createWordSentences = (tokens: Token[]): WordSentence[] => {
+  const wordSentences: WordSentence[] = [];
+  let firstWordIndex: number | null = null;
+  let lastWordIndex: number | null = null;
+
+  for (const token of tokens) {
+    if (token.kind === "word") {
+      const wordIndex = token.wordIndex ?? null;
+
+      if (wordIndex === null) {
+        continue;
+      }
+
+      firstWordIndex ??= wordIndex;
+      lastWordIndex = wordIndex;
+      continue;
+    }
+
+    if (
+      firstWordIndex !== null &&
+      lastWordIndex !== null &&
+      hasSentenceBoundary(token.text)
+    ) {
+      wordSentences.push({ firstWordIndex, lastWordIndex });
+      firstWordIndex = null;
+      lastWordIndex = null;
+    }
+  }
+
+  if (firstWordIndex !== null && lastWordIndex !== null) {
+    wordSentences.push({ firstWordIndex, lastWordIndex });
+  }
+
+  return wordSentences;
 };
 
 export function tokenizeReadingText(rawText: string): ReadingText {
@@ -88,6 +126,7 @@ export function tokenizeReadingText(rawText: string): ReadingText {
   return {
     rawText,
     tokens,
+    wordSentences: createWordSentences(tokens),
     wordCount,
   };
 }

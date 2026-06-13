@@ -1,4 +1,7 @@
-import { calculateWordIntervalMs } from "./readingProgress";
+import {
+  buildSentenceBoundedWindows,
+  calculateWordIntervalMs,
+} from "./readingProgress";
 import type {
   FlashChunk,
   FlashChunksProgress,
@@ -8,37 +11,121 @@ import type {
   Token,
 } from "./types";
 
-export function validateFlashChunkSize(chunkSize: number): void {
-  if (chunkSize <= 0) {
-    throw new Error("Flash chunk size must be greater than 0.");
+export function validateFlashWindowSize(focusWindowSize: number): void {
+  if (focusWindowSize <= 0) {
+    throw new Error("Flash window size must be greater than 0.");
   }
 }
 
 export function buildFlashChunks(
   text: ReadingText,
-  chunkSize: number,
+  settings: FlashChunksSettings,
 ): FlashChunk[] {
-  validateFlashChunkSize(chunkSize);
+  validateFlashWindowSize(settings.focusWindowSize);
+  const wordIntervalMs = calculateWordIntervalMs(settings.wpm);
 
-  const words = text.tokens.filter((token) => token.kind === "word");
-  const chunks: FlashChunk[] = [];
-
-  for (let firstWordIndex = 0; firstWordIndex < words.length; ) {
-    const chunkWords = words.slice(firstWordIndex, firstWordIndex + chunkSize);
-    const lastWordIndex = firstWordIndex + chunkWords.length - 1;
-
-    chunks.push({
-      firstWordIndex,
-      lastWordIndex,
-      text: buildFlashChunkText(text.tokens, firstWordIndex, lastWordIndex),
-      wordCount: chunkWords.length,
-    });
-
-    firstWordIndex = lastWordIndex + 1;
+  if (text.wordCount === 0) {
+    return [];
   }
 
-  return chunks;
+  const totalDurationMs = text.wordCount * wordIntervalMs;
+  if (!doWordSentencesCoverText(text.wordSentences, text.wordCount)) {
+    const fallbackWindows = buildSentenceBoundedWindows(
+      [
+        {
+          firstWordIndex: 0,
+          lastWordIndex: text.wordCount - 1,
+        },
+      ],
+      settings.focusWindowSize,
+      0,
+      text.wordCount - 1,
+    );
+    const fallbackChunks = buildWordRangeFlashChunks(
+      text,
+      settings,
+      fallbackWindows,
+    );
+
+    return applyEqualChunkDuration(fallbackChunks, totalDurationMs);
+  }
+
+  const windows = buildSentenceBoundedWindows(
+    text.wordSentences,
+    settings.focusWindowSize,
+    0,
+    text.wordCount - 1,
+  );
+  const chunks = buildWordRangeFlashChunks(
+    text,
+    settings,
+    windows.length > 0
+      ? windows
+      : [
+          {
+            firstWordIndex: 0,
+            lastWordIndex: text.wordCount - 1,
+            wordCount: text.wordCount,
+          },
+        ],
+  );
+
+  return applyEqualChunkDuration(chunks, totalDurationMs);
 }
+
+const doWordSentencesCoverText = (
+  wordSentences: ReadingText["wordSentences"],
+  wordCount: number,
+) => {
+  if (wordSentences.length === 0) {
+    return wordCount === 0;
+  }
+
+  let expectedFirstWordIndex = 0;
+
+  for (const sentence of wordSentences) {
+    if (sentence.firstWordIndex !== expectedFirstWordIndex) {
+      return false;
+    }
+
+    expectedFirstWordIndex = sentence.lastWordIndex + 1;
+  }
+
+  return expectedFirstWordIndex === wordCount;
+};
+
+const buildWordRangeFlashChunks = (
+  text: ReadingText,
+  settings: FlashChunksSettings,
+  windows: Array<{
+    firstWordIndex: number;
+    lastWordIndex: number;
+    wordCount: number;
+  }>,
+): FlashChunk[] => {
+  validateFlashWindowSize(settings.focusWindowSize);
+
+  return windows.map(({ firstWordIndex, lastWordIndex, wordCount }) => ({
+    firstWordIndex,
+    lastWordIndex,
+    text: buildFlashChunkText(text.tokens, firstWordIndex, lastWordIndex),
+    wordCount,
+    durationMs: 0,
+    }));
+};
+
+const applyEqualChunkDuration = (
+  chunks: FlashChunk[],
+  totalDurationMs: number,
+): FlashChunk[] => {
+  if (chunks.length === 0) {
+    return chunks;
+  }
+
+  const durationMs = totalDurationMs / chunks.length;
+
+  return chunks.map((chunk) => ({ ...chunk, durationMs }));
+};
 
 const containsWhitespace = (text: string) => /\s/u.test(text);
 
@@ -84,9 +171,9 @@ function buildFlashChunkText(
 
 export function calculateFlashChunkDurationMs(
   chunk: FlashChunk,
-  wpm: number,
+  _wpm?: number,
 ): number {
-  return chunk.wordCount * calculateWordIntervalMs(wpm);
+  return chunk.durationMs;
 }
 
 export function createFlashChunksSession(
@@ -95,9 +182,9 @@ export function createFlashChunksSession(
   startedAtMs: number,
 ): FlashChunksSession {
   calculateWordIntervalMs(settings.wpm);
-  validateFlashChunkSize(settings.chunkSize);
+  validateFlashWindowSize(settings.focusWindowSize);
 
-  const chunks = buildFlashChunks(text, settings.chunkSize);
+  const chunks = buildFlashChunks(text, settings);
 
   return {
     text,
@@ -125,10 +212,7 @@ export function calculateFlashChunksProgress(
   let elapsedBeforeChunkMs = 0;
 
   for (const [chunkIndex, chunk] of session.chunks.entries()) {
-    const chunkDurationMs = calculateFlashChunkDurationMs(
-      chunk,
-      session.settings.wpm,
-    );
+    const chunkDurationMs = calculateFlashChunkDurationMs(chunk);
     const isInsideChunk = elapsedMs < elapsedBeforeChunkMs + chunkDurationMs;
 
     if (isInsideChunk) {

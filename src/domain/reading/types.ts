@@ -10,6 +10,7 @@ export type ReadingMode = "guidedWindow" | "flashChunks";
 export type ReadingText = {
   rawText: string;
   tokens: Token[];
+  wordSentences: WordSentence[];
   wordCount: number;
 };
 
@@ -45,16 +46,25 @@ export type WordLine = {
   lastWordIndex: number;
 };
 
-export type FlashChunksSettings = {
-  wpm: number;
-  chunkSize: number;
-};
-
-export type FlashChunk = {
+export type WordSentence = {
   firstWordIndex: number;
   lastWordIndex: number;
-  text: string;
+};
+
+export type ReadingWindow = {
+  firstWordIndex: number;
+  lastWordIndex: number;
   wordCount: number;
+};
+
+export type FlashChunksSettings = {
+  wpm: number;
+  focusWindowSize: number;
+};
+
+export type FlashChunk = ReadingWindow & {
+  text: string;
+  durationMs: number;
 };
 
 export type FlashChunksSession = {

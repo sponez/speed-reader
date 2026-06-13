@@ -102,7 +102,7 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
   );
   const previewHighlightAlpha = (draft.focusHighlightIntensity / 100) * 0.72;
   const isGuidedMode = draft.readingMode === "guidedWindow";
-  const flashPreviewWords = previewWords.slice(0, draft.flashChunkSize);
+  const flashPreviewWords = previewWords.slice(0, draft.focusWindowSize);
 
   const updateNumber = (key: NumericDraftKey, value: string) => {
     const range = preparationRanges[key];
@@ -293,26 +293,26 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
               </span>
             </label>
 
+            <label className="field-control" htmlFor="focus-window-size">
+              <span>Window size</span>
+              <span className="input-with-unit">
+                <input
+                  id="focus-window-size"
+                  type="number"
+                  min={preparationRanges.focusWindowSize.min}
+                  max={preparationRanges.focusWindowSize.max}
+                  step={preparationRanges.focusWindowSize.step}
+                  value={draft.focusWindowSize}
+                  onChange={(event) =>
+                    updateNumber("focusWindowSize", event.target.value)
+                  }
+                />
+                <small>words</small>
+              </span>
+            </label>
+
             {isGuidedMode && (
               <>
-                <label className="field-control" htmlFor="focus-window-size">
-                  <span>Window size</span>
-                  <span className="input-with-unit">
-                    <input
-                      id="focus-window-size"
-                      type="number"
-                      min={preparationRanges.focusWindowSize.min}
-                      max={preparationRanges.focusWindowSize.max}
-                      step={preparationRanges.focusWindowSize.step}
-                      value={draft.focusWindowSize}
-                      onChange={(event) =>
-                        updateNumber("focusWindowSize", event.target.value)
-                      }
-                    />
-                    <small>words</small>
-                  </span>
-                </label>
-
                 <label className="field-control range-control" htmlFor="blur">
                   <span>Blur intensity</span>
                   <span className="input-with-unit">
@@ -385,25 +385,6 @@ function PreparationScreen({ initialDraft, onStart }: PreparationScreenProps) {
               </>
             )}
 
-            {!isGuidedMode && (
-              <label className="field-control" htmlFor="flash-chunk-size">
-                <span>Chunk size</span>
-                <span className="input-with-unit">
-                  <input
-                    id="flash-chunk-size"
-                    type="number"
-                    min={preparationRanges.flashChunkSize.min}
-                    max={preparationRanges.flashChunkSize.max}
-                    step={preparationRanges.flashChunkSize.step}
-                    value={draft.flashChunkSize}
-                    onChange={(event) =>
-                      updateNumber("flashChunkSize", event.target.value)
-                    }
-                  />
-                  <small>words</small>
-                </span>
-              </label>
-            )}
           </div>
 
           <section className="settings-preview" aria-labelledby="preview-title">
